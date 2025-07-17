@@ -1,0 +1,51 @@
+# Visual Studio 기본
+.vs/
+*.user
+*.suo
+*.VC.db
+*.VC.opendb
+
+# 빌드 결과물
+Debug/
+Release/
+x64/
+ipch/
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.log
+*.tlog
+*.cache
+*.dll
+*.lib
+*.exp
+
+# 임시 파일/백업
+*.log
+*.tmp
+*.bak
+*.swp
+
+# 자동 생성 파일
+*.aps
+*.ncb
+*.sdf
+*.opendb
+
+# 테스트/코드분석 등
+TestResults/
+*.vssscc
+*.vspscc
+*.dbmdl
+*.psess
+*.vsp
+*.vsix
+
+# 기타
+*.class
+*.pyc
+*.DS_Store
+Thumbs.db
+
+# 리소스 중 꼭 필요한 것만 관리!
