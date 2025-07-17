@@ -56,6 +56,9 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CView)
 	ON_MESSAGE(WM_USER + 109, &CMFCApplicationView::OnDrawRectFromNet)
 	ON_MESSAGE(WM_USER + 110, &CMFCApplicationView::OnDrawEllipseFromNet)
 	ON_MESSAGE(WM_USER + 111, &CMFCApplicationView::OnSaveAllFromNet)
+	ON_BN_CLICKED(IDC_BTN_FILLCOLOR, &CMFCApplicationView::OnBnClickedBtnFillColor)
+	ON_BN_CLICKED(IDC_BTN_BORDERCOLOR, &CMFCApplicationView::OnBnClickedBtnBorderColor)
+
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -104,6 +107,12 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	 // 저장된 도형 그리기
 	for (const auto& shape : m_shapes)
 	{
+		// 브러시/펜 생성
+		CBrush brush(shape.fillColor);                  // 채움색
+		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor); // 외곽선
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+
 		switch (shape.type)
 		{
 		case DRAW_LINE:
@@ -111,17 +120,26 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 			pDC->LineTo(shape.end);
 			break;
 		case DRAW_RECT:
-			pDC->Rectangle(CRect(shape.start, shape.end));
+			pDC->Rectangle(CRect(shape.start, shape.end));    // 채우기/외곽선 동시적용!
 			break;
 		case DRAW_ELLIPSE:
 			pDC->Ellipse(CRect(shape.start, shape.end));
 			break;
 		}
+		// 원상복귀
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
 	}
 
-	// 현재 그리고 있는 도형 미리보기
+	// --- 미리보기(현재 그리고 있는 도형) ---
 	if (m_bDrawing && m_drawType != DRAW_NONE)
 	{
+		// 예: m_curFillColor, m_curBorderColor, m_curBorderWidth 등
+		CBrush brush(m_curFillColor);
+		CPen pen(PS_SOLID, m_curBorderWidth, m_curBorderColor);
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+
 		switch (m_drawType)
 		{
 		case DRAW_LINE:
@@ -135,7 +153,11 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 			pDC->Ellipse(CRect(m_startPoint, m_endPoint));
 			break;
 		}
+		// Pen/Brush 원복!
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
 	}
+
 
 }
 
@@ -270,6 +292,9 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 		shape.type = m_drawType;
 		shape.start = m_startPoint;
 		shape.end = m_endPoint;
+		shape.fillColor = m_curFillColor;       // <- 이 줄이 반드시 필요!
+		shape.borderColor = m_curBorderColor;
+		shape.borderWidth = m_curBorderWidth;
 		m_shapes.push_back(shape);
 
 		Invalidate(FALSE); // 최종 도형 그리기
@@ -380,6 +405,26 @@ void CMFCApplicationView::OnFlipVertical()
 	}
 	Invalidate();
 }
+
+void CMFCApplicationView::OnBnClickedBtnFillColor()
+{
+	CColorDialog dlg(m_curFillColor);
+	if (dlg.DoModal() == IDOK)
+	{
+		m_curFillColor = dlg.GetColor();
+	}
+}
+
+void CMFCApplicationView::OnBnClickedBtnBorderColor()
+{
+	CColorDialog dlg(m_curBorderColor);
+	if (dlg.DoModal() == IDOK)
+	{
+		m_curBorderColor = dlg.GetColor();
+	}
+}
+
+
 
 
 //소켓 작업

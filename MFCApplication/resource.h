@@ -103,13 +103,17 @@
 #define ID_DRAW_LINE                    32786
 #define ID_DRAW_RECT                    32787
 #define ID_DRAW_ELLIPSE                 32788
+#define ID_32789                        32789
+#define ID_32790                        32790
+#define IDC_BTN_FILLCOLOR               32791
+#define IDC_BTN_BORDERCOLOR             32792
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        310
-#define _APS_NEXT_COMMAND_VALUE         32789
+#define _APS_NEXT_COMMAND_VALUE         32793
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           310
 #endif

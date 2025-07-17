@@ -28,14 +28,20 @@ protected: // serialization에서만 만들어집니다.
         DrawType type;
         CPoint start;
         CPoint end;
+        COLORREF fillColor = RGB(255, 255, 255);    // 채우기 색 
+        COLORREF borderColor = RGB(0, 0, 0);        // 외곽선 색 
+        int borderWidth = 1;                        // 외곽선 두께
     };
 
-    //멤버 변수
+    COLORREF m_curFillColor = RGB(255, 255, 255);
+    COLORREF m_curBorderColor = RGB(0, 0, 0);
+    int      m_curBorderWidth = 1;
     DrawType m_drawType = DRAW_NONE;         // 현재 선택된 도형 종류
-    BOOL m_bDrawing = FALSE;                 // 드래그 중 여부
-    CPoint m_startPoint;                     // 드래그 시작점
-    CPoint m_endPoint;                       // 드래그 끝점
+    BOOL     m_bDrawing = FALSE;             // 드래그 중 여부
+    CPoint   m_startPoint;                   // 드래그 시작점
+    CPoint   m_endPoint;                     // 드래그 끝점
     std::vector<DrawShape> m_shapes;         // 그려진 도형 리스트
+
 
     // 특성입니다.
 public:
@@ -104,6 +110,8 @@ public:
     afx_msg LRESULT OnDrawRectFromNet(WPARAM, LPARAM);
     afx_msg LRESULT OnDrawEllipseFromNet(WPARAM, LPARAM);
     afx_msg LRESULT OnSaveAllFromNet(WPARAM, LPARAM);
+    afx_msg void OnBnClickedBtnFillColor();
+    afx_msg void OnBnClickedBtnBorderColor();
 
 };
 
