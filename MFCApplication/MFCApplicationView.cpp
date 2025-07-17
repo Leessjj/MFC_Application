@@ -56,8 +56,13 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CView)
 	ON_MESSAGE(WM_USER + 109, &CMFCApplicationView::OnDrawRectFromNet)
 	ON_MESSAGE(WM_USER + 110, &CMFCApplicationView::OnDrawEllipseFromNet)
 	ON_MESSAGE(WM_USER + 111, &CMFCApplicationView::OnSaveAllFromNet)
+
+	//도형,선 색상
 	ON_BN_CLICKED(IDC_BTN_FILLCOLOR, &CMFCApplicationView::OnBnClickedBtnFillColor)
 	ON_BN_CLICKED(IDC_BTN_BORDERCOLOR, &CMFCApplicationView::OnBnClickedBtnBorderColor)
+	ON_MESSAGE(WM_USER + 112, &CMFCApplicationView::OnSetFillColor)
+	ON_MESSAGE(WM_USER + 200, &CMFCApplicationView::OnSetBorderColor)
+
 
 END_MESSAGE_MAP()
 
@@ -490,6 +495,23 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 				if (strCmd.Left(12) == _T("SAVE_ALL")) {
 					::PostMessage(pView->m_hWnd, WM_USER + 111, 0, 0);
 				}
+				if (strCmd.Left(13) == _T("SET_FILLCOLOR"))
+				{
+					int r, g, b;
+					_stscanf_s(strCmd.Mid(14), _T("%d %d %d"), &r, &g, &b);
+
+					// 메인 윈도우에 메시지로 전달 (스레드-UI 안전하게)
+					COLORREF color = RGB(r, g, b);
+					::PostMessage(pView->m_hWnd, WM_USER + 112, (WPARAM)color, 0);
+				}
+				if (strCmd.Left(15) == _T("SET_BORDERCOLOR"))
+				{
+					int r, g, b;
+					_stscanf_s(strCmd.Mid(16), _T("%d %d %d"), &r, &g, &b);
+					COLORREF color = RGB(r, g, b);
+					::PostMessage(pView->m_hWnd, WM_USER + 200, (WPARAM)color, 0); // 선 색상 변경
+				}
+
 
 			}
 			clientSocket.Close();
@@ -633,11 +655,25 @@ LRESULT CMFCApplicationView::OnSaveAllFromNet(WPARAM, LPARAM)
 		memDC.SelectObject(pOldBitmap);
 		ReleaseDC(pDC);
 	}
-
-
 	Invalidate();
 	return 0;
 }
+
+// 구현
+LRESULT CMFCApplicationView::OnSetFillColor(WPARAM wParam, LPARAM)
+{
+	m_curFillColor = (COLORREF)wParam;
+	// (바로 도형 그릴 때 적용됨)
+	return 0;
+}
+
+LRESULT CMFCApplicationView::OnSetBorderColor(WPARAM wParam, LPARAM)
+{
+	m_curBorderColor = (COLORREF)wParam;
+	return 0;
+}
+
+
 void CMFCApplicationView::OnInitialUpdate()
 {
 	CView::OnInitialUpdate();

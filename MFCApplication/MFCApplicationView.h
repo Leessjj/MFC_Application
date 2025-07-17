@@ -113,6 +113,9 @@ public:
     afx_msg void OnBnClickedBtnFillColor();
     afx_msg void OnBnClickedBtnBorderColor();
 
+    afx_msg LRESULT OnSetFillColor(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnSetBorderColor(WPARAM wParam, LPARAM lParam);
+
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전
