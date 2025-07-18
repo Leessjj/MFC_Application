@@ -198,3 +198,10 @@ void COutputList::OnViewOutput()
 
 	}
 }
+
+void COutputWnd::AddLog(const CString& msg)
+{
+	m_wndOutputDebug.AddString(msg); // 디버그탭에 로그 추가
+	AdjustHorzScroll(m_wndOutputDebug);
+}
+

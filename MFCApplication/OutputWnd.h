@@ -49,6 +49,7 @@ protected:
 // 구현입니다.
 public:
 	virtual ~COutputWnd();
+	void AddLog(const CString& msg);
 
 protected:
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);

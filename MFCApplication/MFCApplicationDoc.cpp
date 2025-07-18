@@ -13,7 +13,7 @@
 #include "MFCApplicationView.h"
 
 #include <propkey.h>
-
+#include "MainFrm.h"
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -141,6 +141,9 @@ void CMFCApplicationDoc::Dump(CDumpContext& dc) const
 
 BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(lpszPathName);
 	m_image.Destroy(); // 기존 이미지 해제
 	HRESULT hr = m_image.Load(lpszPathName); // 이미지 로드
 	if (FAILED(hr)) {
@@ -166,6 +169,9 @@ BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("문서 저장"));
 	if (m_image.IsNull())
 		return FALSE; // 저장할 이미지가 없음
 
@@ -225,14 +231,23 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
 
 	// 채널별 이미지 초기화
 	if (channel == 'R') {
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(_T("R채널 추출"));
 		if (!m_channelR.IsNull()) m_channelR.Destroy();
 		m_channelR.Create(width, height, 24);
 	}
 	if (channel == 'G') {
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(_T("G채널 추출"));
 		if (!m_channelG.IsNull()) m_channelG.Destroy();
 		m_channelG.Create(width, height, 24);
 	}
 	if (channel == 'B') {
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(_T("B채널 추출"));
 		if (!m_channelB.IsNull()) m_channelB.Destroy();
 		m_channelB.Create(width, height, 24);
 	}

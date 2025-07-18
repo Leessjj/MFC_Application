@@ -12,7 +12,7 @@
 
 #include "MFCApplicationDoc.h"
 #include "MFCApplicationView.h"
-
+#include "MainFrm.h"
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -354,6 +354,7 @@ void CMFCApplicationView::OnViewChannelG()
 }
 void CMFCApplicationView::OnViewChannelB()
 {
+
 	m_selectedChannel = CHANNEL_B;
 	GetDocument()->ExtractRGBChannel('B');
 	Invalidate();
@@ -361,16 +362,25 @@ void CMFCApplicationView::OnViewChannelB()
 
 void CMFCApplicationView::OnDrawLine()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("직선 선택"));
 	m_drawType = DRAW_LINE;
 }
 
 void CMFCApplicationView::OnDrawRect()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("사각형 선택"));
 	m_drawType = DRAW_RECT;
 }
 
 void CMFCApplicationView::OnDrawEllipse()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("원 선택"));
 	m_drawType = DRAW_ELLIPSE;
 }
 
@@ -418,6 +428,9 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 
 void CMFCApplicationView::OnViewSaveasimage()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("모두 선택"));
 	// 파일 다이얼로그 띄움
 	CFileDialog dlg(FALSE, _T("bmp"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("BMP Files (*.bmp)|*.bmp||"));
 	if (dlg.DoModal() == IDOK)
@@ -449,7 +462,7 @@ void CMFCApplicationView::OnViewSaveasimage()
 
 void FlipCImageHorizontal(CImage& img)
 {
-	if (img.IsNull()) return;
+
 	int width = img.GetWidth();
 	int height = img.GetHeight();
 
@@ -523,6 +536,9 @@ void FlipCImageVertical(CImage& img)
 
 void CMFCApplicationView::OnBnClickedBtnFillColor()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("도형색 선택"));
 	CColorDialog dlg(m_curFillColor);
 	if (dlg.DoModal() == IDOK)
 	{
@@ -532,6 +548,9 @@ void CMFCApplicationView::OnBnClickedBtnFillColor()
 
 void CMFCApplicationView::OnBnClickedBtnBorderColor()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("선 색 선택"));
 	CColorDialog dlg(m_curBorderColor);
 	if (dlg.DoModal() == IDOK)
 	{
@@ -541,12 +560,18 @@ void CMFCApplicationView::OnBnClickedBtnBorderColor()
 
 void CMFCApplicationView::OnFlipHorizontal()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("좌우 반전"));
 	m_bFlipH = !m_bFlipH;   // 좌우 반전 상태 토글
 	Invalidate();           // 화면 다시 그리기 요청
 }
 
 void CMFCApplicationView::OnFlipVertical()
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("상하 반전"));
 	m_bFlipV = !m_bFlipV;   // 상하 반전 상태 토글
 	Invalidate();           // 화면 다시 그리기 요청
 }
@@ -593,7 +618,6 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 
 				if (strCmd.Left(5) == _T("OPEN ")) {
 					CString strPath = strCmd.Mid(5).Trim();
-					AfxMessageBox(strCmd);
 					::PostMessage(pView->m_hWnd, WM_USER + 100, 0, (LPARAM)new CString(strPath));
 				}
 				if (strCmd.Left(6) == _T("SAVEAS")) {
@@ -677,39 +701,13 @@ LRESULT CMFCApplicationView::OnSaveImageFromNet(WPARAM, LPARAM)
 }
 LRESULT CMFCApplicationView::OnFlipHFromNet(WPARAM, LPARAM)
 {
-	CMFCApplicationDoc* pDoc = GetDocument();
-	switch (m_selectedChannel) {
-	case CHANNEL_R:
-		FlipCImageHorizontal(pDoc->m_channelR);
-		break;
-	case CHANNEL_G:
-		FlipCImageHorizontal(pDoc->m_channelG);
-		break;
-	case CHANNEL_B:
-		FlipCImageHorizontal(pDoc->m_channelB);
-		break;
-	default:
-		pDoc->OnImageFlipHorizontal();
-	}
+	OnFlipHorizontal();
 	Invalidate();
 	return 0;
 }
 LRESULT CMFCApplicationView::OnFlipVFromNet(WPARAM, LPARAM)
 {
-	CMFCApplicationDoc* pDoc = GetDocument();
-	switch (m_selectedChannel) {
-	case CHANNEL_R:
-		FlipCImageVertical(pDoc->m_channelR);
-		break;
-	case CHANNEL_G:
-		FlipCImageVertical(pDoc->m_channelG);
-		break;
-	case CHANNEL_B:
-		FlipCImageVertical(pDoc->m_channelB);
-		break;
-	default:
-		pDoc->OnImageFlipVertical();
-	}
+	OnFlipVertical();
 	Invalidate(); // 화면 갱신  
 	return 0;
 }
@@ -737,6 +735,9 @@ LRESULT CMFCApplicationView::OnChannelBFromNet(WPARAM, LPARAM)
 
 LRESULT CMFCApplicationView::OnDrawLineFromNet(WPARAM, LPARAM)
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("직선 선택"));
 	m_drawType = DRAW_LINE;
 
 
@@ -745,6 +746,9 @@ LRESULT CMFCApplicationView::OnDrawLineFromNet(WPARAM, LPARAM)
 }
 LRESULT CMFCApplicationView::OnDrawRectFromNet(WPARAM, LPARAM)
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("사각형 선택"));
 	m_drawType = DRAW_RECT;
 
 
@@ -753,18 +757,24 @@ LRESULT CMFCApplicationView::OnDrawRectFromNet(WPARAM, LPARAM)
 }
 LRESULT CMFCApplicationView::OnDrawEllipseFromNet(WPARAM, LPARAM)
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("원 선택"));
+
 	m_drawType = DRAW_ELLIPSE;
-
-
 	Invalidate();
 	return 0;
 }
 
 LRESULT CMFCApplicationView::OnSaveAllFromNet(WPARAM, LPARAM)
 {
+
 	CFileDialog dlg(FALSE, _T("bmp"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("BMP Files (*.bmp)|*.bmp||"));
 	if (dlg.DoModal() == IDOK)
 	{
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(_T("모두 저장"));
 		CString filePath = dlg.GetPathName();
 		// 화면 저장 코드 바로 작성!
 		CRect rect;
@@ -795,6 +805,9 @@ LRESULT CMFCApplicationView::OnSaveAllFromNet(WPARAM, LPARAM)
 // 구현
 LRESULT CMFCApplicationView::OnSetFillColor(WPARAM wParam, LPARAM)
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("도형 색상 선택"));
 	m_curFillColor = (COLORREF)wParam;
 	// (바로 도형 그릴 때 적용됨)
 	return 0;
@@ -802,6 +815,9 @@ LRESULT CMFCApplicationView::OnSetFillColor(WPARAM wParam, LPARAM)
 
 LRESULT CMFCApplicationView::OnSetBorderColor(WPARAM wParam, LPARAM)
 {
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("선 색상 선택"));
 	m_curBorderColor = (COLORREF)wParam;
 	return 0;
 }
