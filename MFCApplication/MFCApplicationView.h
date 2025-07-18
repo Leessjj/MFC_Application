@@ -42,6 +42,10 @@ protected: // serialization에서만 만들어집니다.
     CPoint   m_endPoint;                     // 드래그 끝점
     std::vector<DrawShape> m_shapes;         // 그려진 도형 리스트
 
+    bool m_bFlipH = false;  // 좌우반전
+    bool m_bFlipV = false;  // 상하반전
+
+    CPoint FlipPoint(const CPoint& pt, int width, int height) const;
 
     // 특성입니다.
 public:
@@ -97,6 +101,7 @@ public:
 
     afx_msg void OnFlipHorizontal();
     afx_msg void OnFlipVertical();
+  
 
     //소켓
     afx_msg LRESULT OnOpenImageFileFromNet(WPARAM, LPARAM);

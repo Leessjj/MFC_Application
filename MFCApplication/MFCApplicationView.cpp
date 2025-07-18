@@ -85,7 +85,7 @@ BOOL CMFCApplicationView::PreCreateWindow(CREATESTRUCT& cs)
 }
 
 // CMFCApplicationView 그리기
-
+/*
 void CMFCApplicationView::OnDraw(CDC* pDC)
 {
 
@@ -162,9 +162,119 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldPen);
 		pDC->SelectObject(pOldBrush);
 	}
+}*/
+void CMFCApplicationView::OnDraw(CDC* pDC)
+{
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (!pDoc) return;
+
+	// 1. 클라이언트 크기 (도형 반전용)
+	CRect clientRect;
+	GetClientRect(&clientRect);
+	int viewW = clientRect.Width();
+	int viewH = clientRect.Height();
+
+	// 2. 현재 선택된 이미지 채널
+	CImage* pImg = nullptr;
+	switch (m_selectedChannel) {
+	case CHANNEL_R: pImg = &pDoc->m_channelR; break;
+	case CHANNEL_G: pImg = &pDoc->m_channelG; break;
+	case CHANNEL_B: pImg = &pDoc->m_channelB; break;
+	default:        pImg = &pDoc->m_image;    break;
+	}
+
+	// 3. 이미지 그리기 (반전 포함)
+	if (pImg && !pImg->IsNull()) {
+		int nW = pImg->GetWidth();
+		int nH = pImg->GetHeight();
+		CDC memDC;
+		memDC.CreateCompatibleDC(pDC);
+		CBitmap bmp;
+		bmp.CreateCompatibleBitmap(pDC, nW, nH);
+		CBitmap* pOldBmp = memDC.SelectObject(&bmp);
+		pImg->Draw(memDC.GetSafeHdc(), 0, 0);
+
+		int destX = 0, destY = 0;
+		int destW = nW, destH = nH;
+		int srcX = 0, srcY = 0;
+		int srcW = nW, srcH = nH;
+
+		// [뷰 크기]에 맞게 반전 위치 계산
+		if (m_bFlipH) destX = viewW - nW;
+		if (m_bFlipV) destY = viewH - nH;
+
+		if (m_bFlipH && m_bFlipV)
+			pDC->StretchBlt(destX + nW - 1, destY + nH - 1, -nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		else if (m_bFlipH)
+			pDC->StretchBlt(destX + nW - 1, destY, -nW, nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		else if (m_bFlipV)
+			pDC->StretchBlt(destX, destY + nH - 1, nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		else
+			pDC->BitBlt(0, 0, nW, nH, &memDC, 0, 0, SRCCOPY);
+
+		memDC.SelectObject(pOldBmp);
+	}
 
 
+	// 4. 도형 좌표 변환 함수 (뷰 전체 기준)
+	auto FlipPoint = [this, viewW, viewH](const CPoint& pt) -> CPoint {
+		CPoint res = pt;
+		if (m_bFlipH) res.x = viewW - 1 - res.x;
+		if (m_bFlipV) res.y = viewH - 1 - res.y;
+		return res;
+		};
+
+	// 5. 저장된 도형 그리기 (반전 적용)
+	for (const auto& shape : m_shapes)
+	{
+		CPoint pt1 = FlipPoint(shape.start);
+		CPoint pt2 = FlipPoint(shape.end);
+
+		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+		CBrush brush(shape.fillColor);
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
+
+		switch (shape.type)
+		{
+		case DRAW_LINE:
+			pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:
+			pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE:
+			pDC->Ellipse(CRect(pt1, pt2)); break;
+		}
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
+	}
+
+	// 6. 미리보기 도형 (반전 적용)
+	if (m_bDrawing && m_drawType != DRAW_NONE)
+	{
+		CPoint pt1 = FlipPoint(m_startPoint);
+		CPoint pt2 = FlipPoint(m_endPoint);
+
+		CPen pen(PS_SOLID, m_curBorderWidth, m_curBorderColor);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+		CBrush brush(m_curFillColor);
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
+
+		switch (m_drawType)
+		{
+		case DRAW_LINE:
+			pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:
+			pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE:
+			pDC->Ellipse(CRect(pt1, pt2)); break;
+		}
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
+	}
 }
+
+
+
 
 
 // CMFCApplicationView 인쇄
@@ -373,43 +483,43 @@ void FlipCImageVertical(CImage& img)
 	}
 }
 
-void CMFCApplicationView::OnFlipHorizontal()
-{
-	CMFCApplicationDoc* pDoc = GetDocument();
-	switch (m_selectedChannel) {
-	case CHANNEL_R:
-		FlipCImageHorizontal(pDoc->m_channelR);
-		break;
-	case CHANNEL_G:
-		FlipCImageHorizontal(pDoc->m_channelG);
-		break;
-	case CHANNEL_B:
-		FlipCImageHorizontal(pDoc->m_channelB);
-		break;
-	default:
-		pDoc->OnImageFlipHorizontal();
-	}
-	Invalidate();
-}
+//void CMFCApplicationView::OnFlipHorizontal()
+//{
+//	CMFCApplicationDoc* pDoc = GetDocument();
+//	switch (m_selectedChannel) {
+//	case CHANNEL_R:
+//		FlipCImageHorizontal(pDoc->m_channelR);
+//		break;
+//	case CHANNEL_G:
+//		FlipCImageHorizontal(pDoc->m_channelG);
+//		break;
+//	case CHANNEL_B:
+//		FlipCImageHorizontal(pDoc->m_channelB);
+//		break;
+//	default:
+//		pDoc->OnImageFlipHorizontal();
+//	}
+//	Invalidate();
+//}
 
-void CMFCApplicationView::OnFlipVertical()
-{
-	CMFCApplicationDoc* pDoc = GetDocument();
-	switch (m_selectedChannel) {
-	case CHANNEL_R:
-		FlipCImageVertical(pDoc->m_channelR);
-		break;
-	case CHANNEL_G:
-		FlipCImageVertical(pDoc->m_channelG);
-		break;
-	case CHANNEL_B:
-		FlipCImageVertical(pDoc->m_channelB);
-		break;
-	default:
-		pDoc->OnImageFlipVertical();
-	}
-	Invalidate();
-}
+//void CMFCApplicationView::OnFlipVertical()
+//{
+//	CMFCApplicationDoc* pDoc = GetDocument();
+//	switch (m_selectedChannel) {
+//	case CHANNEL_R:
+//		FlipCImageVertical(pDoc->m_channelR);
+//		break;
+//	case CHANNEL_G:
+//		FlipCImageVertical(pDoc->m_channelG);
+//		break;
+//	case CHANNEL_B:
+//		FlipCImageVertical(pDoc->m_channelB);
+//		break;
+//	default:
+//		pDoc->OnImageFlipVertical();
+//	}
+//	Invalidate();
+//}
 
 void CMFCApplicationView::OnBnClickedBtnFillColor()
 {
@@ -429,7 +539,30 @@ void CMFCApplicationView::OnBnClickedBtnBorderColor()
 	}
 }
 
+void CMFCApplicationView::OnFlipHorizontal()
+{
+	m_bFlipH = !m_bFlipH;   // 좌우 반전 상태 토글
+	Invalidate();           // 화면 다시 그리기 요청
+}
 
+void CMFCApplicationView::OnFlipVertical()
+{
+	m_bFlipV = !m_bFlipV;   // 상하 반전 상태 토글
+	Invalidate();           // 화면 다시 그리기 요청
+}
+
+
+
+
+CPoint CMFCApplicationView::FlipPoint(const CPoint& pt, int width, int height) const
+{
+	CPoint out = pt;
+	if (m_bFlipH)
+		out.x = width - 1 - out.x;
+	if (m_bFlipV)
+		out.y = height - 1 - out.y;
+	return out;
+}
 
 
 //소켓 작업
@@ -463,7 +596,7 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 					AfxMessageBox(strCmd);
 					::PostMessage(pView->m_hWnd, WM_USER + 100, 0, (LPARAM)new CString(strPath));
 				}
-				if (strCmd.Left(4) == _T("SAVEAS")) {
+				if (strCmd.Left(6) == _T("SAVEAS")) {
 					::PostMessage(pView->m_hWnd, WM_USER + 101, 0, 0);
 				}
 				if (strCmd.Left(7) == _T("FLIP_H")) {
