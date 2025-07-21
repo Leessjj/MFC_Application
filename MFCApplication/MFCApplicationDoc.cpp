@@ -14,6 +14,11 @@
 
 #include <propkey.h>
 #include "MainFrm.h"
+
+#include <windows.h>   // RGB, GetRValue 등
+#include <algorithm>   // std::swap
+
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -137,152 +142,216 @@ void CMFCApplicationDoc::Dump(CDumpContext& dc) const
 #endif //_DEBUG
 
 
-// CMFCApplicationDoc 명령
+// --- 버퍼 관리 함수 ---
+void CMFCApplicationDoc::FreeImage()
+{
+    if (m_pImage) { delete[] m_pImage; m_pImage = nullptr; }
+    if (m_pChannelR) { delete[] m_pChannelR; m_pChannelR = nullptr; }
+    if (m_pChannelG) { delete[] m_pChannelG; m_pChannelG = nullptr; }
+    if (m_pChannelB) { delete[] m_pChannelB; m_pChannelB = nullptr; }
+}
+
+void CMFCApplicationDoc::AllocateImage(int width, int height, int channels)
+{
+    FreeImage();
+    m_width = width;
+    m_height = height;
+    m_channels = channels;
+    m_pImage = new BYTE[width * height * channels];
+
+    TRACE(_T("[DEBUG] AllocateImage: width=%d, height=%d, channels=%d, total bytes=%d\n"),
+        width, height, channels, width * height * channels);
+}
+// --- BMP 파일 읽기 ---
+BOOL CMFCApplicationDoc::LoadBMP(LPCTSTR lpszPathName)
+{
+    CFile file;
+    if (!file.Open(lpszPathName, CFile::modeRead | CFile::typeBinary))
+        return FALSE;
+
+    BITMAPFILEHEADER header;
+    BITMAPINFOHEADER info;
+    file.Read(&header, sizeof(header));
+    file.Read(&info, sizeof(info));
+    if (header.bfType != 0x4D42 || info.biBitCount != 24)
+    {
+        file.Close();
+        AfxMessageBox(_T("24bit BMP만 지원합니다."));
+        return FALSE;
+    }
+
+    AllocateImage(info.biWidth, abs(info.biHeight), 3);
+    file.Seek(header.bfOffBits, CFile::begin);
+
+    int pad = (4 - (m_width * 3) % 4) % 4;
+    bool bBottomUp = info.biHeight > 0;
+
+    for (int y = 0; y < m_height; ++y)
+    {
+        int row = bBottomUp ? (m_height - 1 - y) : y;
+        file.Read(m_pImage + row * m_width * 3, m_width * 3);
+        BYTE dummy[4] = { 0, };
+        file.Read(dummy, pad); // 반드시!!!
+    }
+    file.Close();
+    return TRUE;
+}
+
+
+
+// --- BMP 파일 저장 ---
+BOOL CMFCApplicationDoc::SaveBMP(LPCTSTR lpszPathName)
+{
+    if (!m_pImage) return FALSE;
+
+    CFile file;
+    if (!file.Open(lpszPathName, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary))
+        return FALSE;
+
+    int pad = (4 - (m_width * 3) % 4) % 4;
+    int fileSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER)
+        + (m_width * 3 + pad) * m_height;
+
+    BITMAPFILEHEADER header = { 0x4D42, (DWORD)fileSize, 0, 0,
+        sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) };
+    BITMAPINFOHEADER info = { sizeof(BITMAPINFOHEADER), m_width, m_height, 1, 24, 0, 0, 0, 0, 0, 0 };
+
+    file.Write(&header, sizeof(header));
+    file.Write(&info, sizeof(info));
+
+    BYTE zeros[4] = { 0, };
+    for (int y = m_height - 1; y >= 0; --y)
+    {
+        file.Write(m_pImage + y * m_width * 3, m_width * 3);
+        file.Write(zeros, pad);
+    }
+    file.Close();
+    return TRUE;
+}
+
+
+// ---- 명령 함수들 ----
 
 BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(lpszPathName);
-	m_image.Destroy(); // 기존 이미지 해제
-	HRESULT hr = m_image.Load(lpszPathName); // 이미지 로드
-	if (FAILED(hr)) {
-		AfxMessageBox(_T("이미지 로드 실패"));
-		return FALSE;
-	}
-	if (!m_channelR.IsNull()) m_channelR.Destroy();
-	if (!m_channelG.IsNull()) m_channelG.Destroy();
-	if (!m_channelB.IsNull()) m_channelB.Destroy();
+    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    if (pMainFrm)
+        pMainFrm->m_wndOutput.AddLog(lpszPathName);
 
-	POSITION pos = GetFirstViewPosition();
-	while (pos != NULL) {
-		CView* pView = GetNextView(pos);
-		CMFCApplicationView* pMyView = dynamic_cast<CMFCApplicationView*>(pView);
-		if (pMyView) {
-			pMyView->m_selectedChannel = CMFCApplicationView::CHANNEL_ORG;
-		}
-	}
+    FreeImage();
 
-	UpdateAllViews(NULL); // 화면 갱신 요청
-	return TRUE;
+    if (!LoadBMP(lpszPathName)) {
+        AfxMessageBox(_T("이미지 로드 실패 (24bit BMP만 지원)"));
+        return FALSE;
+    }
+
+    if (m_pChannelR) { delete[] m_pChannelR; m_pChannelR = nullptr; }
+    if (m_pChannelG) { delete[] m_pChannelG; m_pChannelG = nullptr; }
+    if (m_pChannelB) { delete[] m_pChannelB; m_pChannelB = nullptr; }
+
+    POSITION pos = GetFirstViewPosition();
+    while (pos != NULL) {
+        CView* pView = GetNextView(pos);
+        CMFCApplicationView* pMyView = dynamic_cast<CMFCApplicationView*>(pView);
+        if (pMyView) {
+            pMyView->m_selectedChannel = CMFCApplicationView::CHANNEL_ORG;
+        }
+    }
+
+    UpdateAllViews(NULL);
+    return TRUE;
 }
 
 BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
 {
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("문서 저장"));
-	if (m_image.IsNull())
-		return FALSE; // 저장할 이미지가 없음
+    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    if (pMainFrm)
+        pMainFrm->m_wndOutput.AddLog(_T("문서 저장"));
+    if (!m_pImage)
+        return FALSE;
 
-	HRESULT hr = m_image.Save(lpszPathName); // 파일로 저장
-	if (FAILED(hr)) {
-		AfxMessageBox(_T("이미지 저장 실패"));
-		return FALSE;
-	}
-	return TRUE;
+    if (!SaveBMP(lpszPathName)) {
+        AfxMessageBox(_T("이미지 저장 실패 (24bit BMP만 지원)"));
+        return FALSE;
+    }
+    return TRUE;
 }
+
+// --- 좌우 반전 ---
 void CMFCApplicationDoc::OnImageFlipHorizontal()
 {
-	if (m_image.IsNull()) return;
+    if (!m_pImage) return;
 
-	int width = m_image.GetWidth();
-	int height = m_image.GetHeight();
-
-	for (int y = 0; y < height; ++y)
-	{
-		for (int x = 0; x < width / 2; ++x)
-		{
-			COLORREF left = m_image.GetPixel(x, y);
-			COLORREF right = m_image.GetPixel(width - 1 - x, y);
-			m_image.SetPixel(x, y, right);
-			m_image.SetPixel(width - 1 - x, y, left);
-		}
-	}
-	UpdateAllViews(NULL); // 화면 새로 그리기
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+    for (int y = 0; y < m_height; ++y)
+    {
+        for (int x = 0; x < m_width / 2; ++x)
+        {
+            int idxL = (y * m_width + x) * 3;
+            int idxR = (y * m_width + (m_width - 1 - x)) * 3;
+            for (int c = 0; c < 3; ++c)
+                std::swap(m_pImage[idxL + c], m_pImage[idxR + c]);
+        }
+    }
+    UpdateAllViews(NULL);
 }
 
+// --- 상하 반전 ---
 void CMFCApplicationDoc::OnImageFlipVertical()
 {
-	if (m_image.IsNull()) return;
+    if (!m_pImage) return;
 
-	int width = m_image.GetWidth();
-	int height = m_image.GetHeight();
-
-	for (int y = 0; y < height / 2; ++y)
-	{
-		for (int x = 0; x < width; ++x)
-		{
-			COLORREF top = m_image.GetPixel(x, y);
-			COLORREF bottom = m_image.GetPixel(x, height - 1 - y);
-			m_image.SetPixel(x, y, bottom);
-			m_image.SetPixel(x, height - 1 - y, top);
-		}
-	}
-	UpdateAllViews(NULL); // 화면 새로 그리기
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+    for (int y = 0; y < m_height / 2; ++y)
+    {
+        int idxT = y * m_width * 3;
+        int idxB = (m_height - 1 - y) * m_width * 3;
+        for (int x = 0; x < m_width * 3; ++x)
+            std::swap(m_pImage[idxT + x], m_pImage[idxB + x]);
+    }
+    UpdateAllViews(NULL);
 }
 
+// --- RGB 채널 추출 ---
 void CMFCApplicationDoc::ExtractRGBChannel(char channel)
 {
-	int width = m_image.GetWidth();
-	int height = m_image.GetHeight();
+    if (!m_pImage) return;
+    int width = m_width, height = m_height;
+    BYTE*& pChannel =
+        (channel == 'R') ? m_pChannelR :
+        (channel == 'G') ? m_pChannelG :
+        m_pChannelB;
 
-	// 채널별 이미지 초기화
-	if (channel == 'R') {
-		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-		if (pMainFrm)
-			pMainFrm->m_wndOutput.AddLog(_T("R채널 추출"));
-		if (!m_channelR.IsNull()) m_channelR.Destroy();
-		m_channelR.Create(width, height, 24);
-	}
-	if (channel == 'G') {
-		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-		if (pMainFrm)
-			pMainFrm->m_wndOutput.AddLog(_T("G채널 추출"));
-		if (!m_channelG.IsNull()) m_channelG.Destroy();
-		m_channelG.Create(width, height, 24);
-	}
-	if (channel == 'B') {
-		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-		if (pMainFrm)
-			pMainFrm->m_wndOutput.AddLog(_T("B채널 추출"));
-		if (!m_channelB.IsNull()) m_channelB.Destroy();
-		m_channelB.Create(width, height, 24);
-	}
+    if (pChannel) { delete[] pChannel; pChannel = nullptr; }
+    pChannel = new BYTE[width * height * 3];
 
-	for (int y = 0; y < height; ++y)
-	{
-		BYTE* pSrc = (BYTE*)m_image.GetPixelAddress(0, y);
-		BYTE* pDst = nullptr;
+    CString logMsg;
+    if (channel == 'R') logMsg = _T("R채널 추출");
+    else if (channel == 'G') logMsg = _T("G채널 추출");
+    else if (channel == 'B') logMsg = _T("B채널 추출");
+    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    if (pMainFrm) pMainFrm->m_wndOutput.AddLog(logMsg);
 
-		if (channel == 'R') pDst = (BYTE*)m_channelR.GetPixelAddress(0, y);
-		if (channel == 'G') pDst = (BYTE*)m_channelG.GetPixelAddress(0, y);
-		if (channel == 'B') pDst = (BYTE*)m_channelB.GetPixelAddress(0, y);
+    for (int i = 0; i < width * height; ++i)
+    {
+        BYTE b = m_pImage[i * 3 + 0];
+        BYTE g = m_pImage[i * 3 + 1];
+        BYTE r = m_pImage[i * 3 + 2];
 
-		for (int x = 0; x < width; ++x)
-		{
-			BYTE b = pSrc[x * 3 + 0];
-			BYTE g = pSrc[x * 3 + 1];
-			BYTE r = pSrc[x * 3 + 2];
-
-			if (channel == 'R') {
-				pDst[x * 3 + 0] = 0; // B
-				pDst[x * 3 + 1] = 0; // G
-				pDst[x * 3 + 2] = r; // R만 남김
-			}
-			if (channel == 'G') {
-				pDst[x * 3 + 0] = 0;
-				pDst[x * 3 + 1] = g;
-				pDst[x * 3 + 2] = 0;
-			}
-			if (channel == 'B') {
-				pDst[x * 3 + 0] = b;
-				pDst[x * 3 + 1] = 0;
-				pDst[x * 3 + 2] = 0;
-			}
-		}
-	}
+        if (channel == 'R') {
+            pChannel[i * 3 + 0] = 0;
+            pChannel[i * 3 + 1] = 0;
+            pChannel[i * 3 + 2] = r;
+        }
+        else if (channel == 'G') {
+            pChannel[i * 3 + 0] = 0;
+            pChannel[i * 3 + 1] = g;
+            pChannel[i * 3 + 2] = 0;
+        }
+        else if (channel == 'B') {
+            pChannel[i * 3 + 0] = b;
+            pChannel[i * 3 + 1] = 0;
+            pChannel[i * 3 + 2] = 0;
+        }
+    }
+    UpdateAllViews(NULL);
 }
 

@@ -14,15 +14,31 @@ protected: // serialization에서만 만들어집니다.
 
 	// 특성입니다.
 public:
-	CImage m_image;
-	CImage m_channelR;
-	CImage m_channelG;
-	CImage m_channelB;
+	BYTE* m_pImage = nullptr;         // 원본/주 이미지 버퍼(RGB)
+	int   m_width = 0;                // 가로 픽셀
+	int   m_height = 0;               // 세로 픽셀
+	int   m_channels = 3;             // 채널(기본 3)
+
+	// (2) 채널 분리(선택)용 버퍼
+	BYTE* m_pChannelR = nullptr;
+	BYTE* m_pChannelG = nullptr;
+	BYTE* m_pChannelB = nullptr;
+
 	// 작업입니다.
 public:
+	// (3) 기존 작업 함수들은 동일하게 제공, 다만 버퍼 기반 구현!
 	void OnImageFlipHorizontal();
 	void OnImageFlipVertical();
 	void ExtractRGBChannel(char channel);
+
+	// (4) 추가: 버퍼 관리 및 BMP 입출력
+	void AllocateImage(int width, int height, int channels = 3);
+	void FreeImage();
+	BOOL LoadBMP(LPCTSTR lpszPathName);
+	BOOL SaveBMP(LPCTSTR lpszPathName);
+
+	// (5) (선택) 공백 이미지 생성 (그림판처럼 동작)
+	void CreateBlankImage(int width, int height, COLORREF color = RGB(255, 255, 255));
 
 
 	// 재정의입니다.

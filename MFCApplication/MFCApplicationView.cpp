@@ -174,49 +174,66 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	int viewW = clientRect.Width();
 	int viewH = clientRect.Height();
 
-	// 2. 현재 선택된 이미지 채널
-	CImage* pImg = nullptr;
+	// 2. 현재 선택된 채널의 BYTE* 버퍼
+	BYTE* pBuf = pDoc->m_pImage;
+	int nW = pDoc->m_width, nH = pDoc->m_height;
 	switch (m_selectedChannel) {
-	case CHANNEL_R: pImg = &pDoc->m_channelR; break;
-	case CHANNEL_G: pImg = &pDoc->m_channelG; break;
-	case CHANNEL_B: pImg = &pDoc->m_channelB; break;
-	default:        pImg = &pDoc->m_image;    break;
+	case CHANNEL_R: if (pDoc->m_pChannelR) pBuf = pDoc->m_pChannelR; break;
+	case CHANNEL_G: if (pDoc->m_pChannelG) pBuf = pDoc->m_pChannelG; break;
+	case CHANNEL_B: if (pDoc->m_pChannelB) pBuf = pDoc->m_pChannelB; break;
+	default: break;
+	}
+	if (!pBuf || nW == 0 || nH == 0) return;
+
+	// 3. BITMAPINFO 준비 (24bit)
+	BITMAPINFO bmi = {};
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = nW;
+	bmi.bmiHeader.biHeight = -nH; // Top-down
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 24;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	// ---- [수정 시작] stride 맞춘 임시 버퍼로 DIB 출력 ----
+	int stride = ((nW * 3) + 3) & ~3;
+	std::vector<BYTE> dibBuf(stride * nH, 0);
+
+	for (int y = 0; y < nH; ++y) {
+		memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
+		// 남는 패딩은 이미 0으로 초기화되어 있음
 	}
 
-	// 3. 이미지 그리기 (반전 포함)
-	if (pImg && !pImg->IsNull()) {
-		int nW = pImg->GetWidth();
-		int nH = pImg->GetHeight();
-		CDC memDC;
-		memDC.CreateCompatibleDC(pDC);
-		CBitmap bmp;
-		bmp.CreateCompatibleBitmap(pDC, nW, nH);
-		CBitmap* pOldBmp = memDC.SelectObject(&bmp);
-		pImg->Draw(memDC.GetSafeHdc(), 0, 0);
+	CDC memDC;
+	memDC.CreateCompatibleDC(pDC);
+	CBitmap bmp;
+	bmp.CreateCompatibleBitmap(pDC, nW, nH);
+	CBitmap* pOldBmp = memDC.SelectObject(&bmp);
 
-		int destX = 0, destY = 0;
-		int destW = nW, destH = nH;
-		int srcX = 0, srcY = 0;
-		int srcW = nW, srcH = nH;
-
-		// [뷰 크기]에 맞게 반전 위치 계산
-		if (m_bFlipH) destX = viewW - nW;
-		if (m_bFlipV) destY = viewH - nH;
-
-		if (m_bFlipH && m_bFlipV)
-			pDC->StretchBlt(destX + nW - 1, destY + nH - 1, -nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
-		else if (m_bFlipH)
-			pDC->StretchBlt(destX + nW - 1, destY, -nW, nH, &memDC, 0, 0, nW, nH, SRCCOPY);
-		else if (m_bFlipV)
-			pDC->StretchBlt(destX, destY + nH - 1, nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
-		else
-			pDC->BitBlt(0, 0, nW, nH, &memDC, 0, 0, SRCCOPY);
-
-		memDC.SelectObject(pOldBmp);
-	}
+	::SetDIBitsToDevice(
+		memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
+	);
+	// ---- [수정 끝] ----
 
 
-	// 4. 도형 좌표 변환 함수 (뷰 전체 기준)
+	// === 중앙 정렬용 위치 계산 ===
+	int destX = (viewW - nW) / 2;
+	int destY = (viewH - nH) / 2;
+	if (destX < 0) destX = 0;
+	if (destY < 0) destY = 0;
+
+	// 5. 반전 상태에 따라 화면에 복사
+	if (m_bFlipH && m_bFlipV)
+		pDC->StretchBlt(destX + nW - 1, destY + nH - 1, -nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+	else if (m_bFlipH)
+		pDC->StretchBlt(destX + nW - 1, destY, -nW, nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+	else if (m_bFlipV)
+		pDC->StretchBlt(destX, destY + nH - 1, nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+	else
+		pDC->BitBlt(destX, destY, min(nW, viewW), min(nH, viewH), &memDC, 0, 0, SRCCOPY);
+
+	memDC.SelectObject(pOldBmp);
+
+	// === 도형 및 미리보기 그리기는 기존 코드와 동일하게! ===
 	auto FlipPoint = [this, viewW, viewH](const CPoint& pt) -> CPoint {
 		CPoint res = pt;
 		if (m_bFlipH) res.x = viewW - 1 - res.x;
@@ -224,7 +241,6 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		return res;
 		};
 
-	// 5. 저장된 도형 그리기 (반전 적용)
 	for (const auto& shape : m_shapes)
 	{
 		CPoint pt1 = FlipPoint(shape.start);
@@ -237,18 +253,14 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 
 		switch (shape.type)
 		{
-		case DRAW_LINE:
-			pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
-		case DRAW_RECT:
-			pDC->Rectangle(CRect(pt1, pt2)); break;
-		case DRAW_ELLIPSE:
-			pDC->Ellipse(CRect(pt1, pt2)); break;
+		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
 		}
 		pDC->SelectObject(pOldPen);
 		pDC->SelectObject(pOldBrush);
 	}
 
-	// 6. 미리보기 도형 (반전 적용)
 	if (m_bDrawing && m_drawType != DRAW_NONE)
 	{
 		CPoint pt1 = FlipPoint(m_startPoint);
@@ -261,17 +273,16 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 
 		switch (m_drawType)
 		{
-		case DRAW_LINE:
-			pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
-		case DRAW_RECT:
-			pDC->Rectangle(CRect(pt1, pt2)); break;
-		case DRAW_ELLIPSE:
-			pDC->Ellipse(CRect(pt1, pt2)); break;
+		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
 		}
 		pDC->SelectObject(pOldPen);
 		pDC->SelectObject(pOldBrush);
 	}
 }
+
+
 
 
 
