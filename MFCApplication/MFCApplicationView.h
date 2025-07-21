@@ -74,6 +74,9 @@ public:
 
     // 작업입니다.
 public:
+public:
+    void DrawAllShapesToDC(CDC* pDC);
+
 
     // 재정의입니다.
 public:
@@ -138,6 +141,7 @@ public:
     afx_msg LRESULT OnSetFillColor(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnSetBorderColor(WPARAM wParam, LPARAM lParam);
 
+    afx_msg void OnFileSaveAs();
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전

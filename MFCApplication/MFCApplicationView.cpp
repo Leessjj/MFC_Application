@@ -64,6 +64,7 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_MESSAGE(WM_USER + 200, &CMFCApplicationView::OnSetBorderColor)
 
 
+	ON_COMMAND(ID_FILE_SAVE_AS, &CMFCApplicationView::OnFileSaveAs)
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -875,3 +876,52 @@ bool CMFCApplicationView::IsInCanvas(CPoint pt)
 	return (x >= 0 && x < pDoc->m_width && y >= 0 && y < pDoc->m_height);
 }
 
+void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
+{
+	int nW = GetDocument()->m_width;
+	int nH = GetDocument()->m_height;
+
+	auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
+		CPoint res = pt;
+		if (m_bFlipH) res.x = nW - 1 - res.x;
+		if (m_bFlipV) res.y = nH - 1 - res.y;
+		return res;
+		};
+
+	for (const auto& shape : m_shapes)
+	{
+		CPoint pt1 = FlipPoint(shape.start);
+		CPoint pt2 = FlipPoint(shape.end);
+
+		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+		CBrush brush(shape.fillColor);
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
+
+		switch (shape.type)
+		{
+		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
+		}
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
+	}
+}
+
+void CMFCApplicationView::OnFileSaveAs()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CFileDialog dlg(FALSE, _T("bmp"), NULL,
+		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
+		_T("BMP Files (*.bmp)|*.bmp||"));
+	if (dlg.DoModal() != IDOK)
+		return;
+
+	CString filePath = dlg.GetPathName();
+
+	// Document 포인터 얻어서 직접 저장 호출
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (pDoc)
+		pDoc->OnSaveDocument(filePath);
+}

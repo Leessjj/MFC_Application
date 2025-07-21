@@ -18,6 +18,8 @@ public:
 	int   m_width = 0;                // 가로 픽셀
 	int   m_height = 0;               // 세로 픽셀
 	int   m_channels = 3;             // 채널(기본 3)
+	int   m_imgW = 0;   // 실제 이미지 가로
+	int   m_imgH = 0;   // 실제 이미지 세로
 
 	// (2) 채널 분리(선택)용 버퍼
 	BYTE* m_pChannelR = nullptr;
@@ -44,7 +46,7 @@ public:
 	virtual BOOL OnNewDocument();
 	virtual void Serialize(CArchive& ar);
 	virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);
-	virtual BOOL OnSaveDocument(LPCTSTR lpszPathName);
+	virtual BOOL OnSaveDocument(LPCTSTR lpszPathName)override;
 #ifdef SHARED_HANDLERS
 	virtual void InitializeSearchContent();
 	virtual void OnDrawThumbnail(CDC& dc, LPRECT lprcBounds);

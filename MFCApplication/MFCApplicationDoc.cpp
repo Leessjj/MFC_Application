@@ -181,6 +181,10 @@ BOOL CMFCApplicationDoc::LoadBMP(LPCTSTR lpszPathName)
     }
 
     AllocateImage(info.biWidth, abs(info.biHeight), 3);
+
+    m_imgW = info.biWidth;
+    m_imgH = abs(info.biHeight);
+
     file.Seek(header.bfOffBits, CFile::begin);
 
     int pad = (4 - (m_width * 3) % 4) % 4;
@@ -264,18 +268,81 @@ BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
 BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
 {
+    // 로그 출력(기존대로 유지)
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm)
         pMainFrm->m_wndOutput.AddLog(_T("문서 저장"));
-    if (!m_pImage)
-        return FALSE;
 
-    if (!SaveBMP(lpszPathName)) {
-        AfxMessageBox(_T("이미지 저장 실패 (24bit BMP만 지원)"));
-        return FALSE;
+    // 도화지 크기
+    int nW = m_width, nH = m_height;
+
+    CDC memDC;
+    memDC.CreateCompatibleDC(nullptr);
+    CClientDC desktopDC(NULL);
+    CBitmap bitmap;
+    bitmap.CreateCompatibleBitmap(&desktopDC, nW, nH);
+    CBitmap* pOldBmp = memDC.SelectObject(&bitmap);
+
+    // 배경(흰색)
+    memDC.FillSolidRect(0, 0, nW, nH, RGB(255, 255, 255));
+
+    // ----------- [중요!] 현재 선택된 채널 추출 -------------
+    // (현재 활성 View에서 m_selectedChannel을 가져옴)
+    CMFCApplicationView* pView = nullptr;
+    POSITION pos = GetFirstViewPosition();
+    while (pos)
+    {
+        CView* v = GetNextView(pos);
+        if (v->IsKindOf(RUNTIME_CLASS(CMFCApplicationView))) {
+            pView = (CMFCApplicationView*)v;
+            break; // SDI는 1개만
+        }
     }
-    return TRUE;
+    if (!pView) return FALSE;
+
+    BYTE* pBuf = m_pImage;
+    switch (pView->m_selectedChannel) {
+    case CMFCApplicationView::CHANNEL_R:
+        if (m_pChannelR) pBuf = m_pChannelR; break;
+    case CMFCApplicationView::CHANNEL_G:
+        if (m_pChannelG) pBuf = m_pChannelG; break;
+    case CMFCApplicationView::CHANNEL_B:
+        if (m_pChannelB) pBuf = m_pChannelB; break;
+    }
+
+
+    BITMAPINFO bmi = {};
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = nW;
+    bmi.bmiHeader.biHeight = -nH;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 24;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    int stride = ((nW * 3) + 3) & ~3;
+    std::vector<BYTE> dibBuf(stride * nH, 0);
+
+    for (int y = 0; y < nH; ++y)
+        memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
+
+    ::SetDIBitsToDevice(
+        memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
+    );
+
+    // ----------- 도형까지 합성 -------------
+    pView->DrawAllShapesToDC(&memDC);
+
+    // ----------- 비트맵을 파일로 저장 -------------
+    CImage image;
+    image.Attach((HBITMAP)bitmap.Detach());
+    HRESULT hr = image.Save(lpszPathName, Gdiplus::ImageFormatBMP); // PNG/JPG 등도 가능
+    image.Detach();
+
+    memDC.SelectObject(pOldBmp);
+
+    return SUCCEEDED(hr);
 }
+
+
 
 // --- 좌우 반전 ---
 void CMFCApplicationDoc::OnImageFlipHorizontal()
@@ -315,13 +382,17 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
 {
     if (!m_pImage) return;
     int width = m_width, height = m_height;
+    int imgW = m_imgW, imgH = m_imgH;
     BYTE*& pChannel =
         (channel == 'R') ? m_pChannelR :
         (channel == 'G') ? m_pChannelG :
         m_pChannelB;
 
     if (pChannel) { delete[] pChannel; pChannel = nullptr; }
-    pChannel = new BYTE[width * height * 3];
+    pChannel = new BYTE[width * height * 3]; // 전체 도화지 사이즈는 유지
+
+    // 도화지 전체를 일단 흰색(RGB=255)으로 초기화
+    memset(pChannel, 255, width * height * 3);
 
     CString logMsg;
     if (channel == 'R') logMsg = _T("R채널 추출");
@@ -330,26 +401,29 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm) pMainFrm->m_wndOutput.AddLog(logMsg);
 
-    for (int i = 0; i < width * height; ++i)
+    for (int y = 0; y < imgH; ++y)
     {
-        BYTE b = m_pImage[i * 3 + 0];
-        BYTE g = m_pImage[i * 3 + 1];
-        BYTE r = m_pImage[i * 3 + 2];
-
-        if (channel == 'R') {
-            pChannel[i * 3 + 0] = 0;
-            pChannel[i * 3 + 1] = 0;
-            pChannel[i * 3 + 2] = r;
-        }
-        else if (channel == 'G') {
-            pChannel[i * 3 + 0] = 0;
-            pChannel[i * 3 + 1] = g;
-            pChannel[i * 3 + 2] = 0;
-        }
-        else if (channel == 'B') {
-            pChannel[i * 3 + 0] = b;
-            pChannel[i * 3 + 1] = 0;
-            pChannel[i * 3 + 2] = 0;
+        for (int x = 0; x < imgW; ++x)
+        {
+            int idx = (y * width + x) * 3;
+            BYTE b = m_pImage[idx + 0];
+            BYTE g = m_pImage[idx + 1];
+            BYTE r = m_pImage[idx + 2];
+            if (channel == 'R') {
+                pChannel[idx + 0] = 0;
+                pChannel[idx + 1] = 0;
+                pChannel[idx + 2] = r;
+            }
+            else if (channel == 'G') {
+                pChannel[idx + 0] = 0;
+                pChannel[idx + 1] = g;
+                pChannel[idx + 2] = 0;
+            }
+            else if (channel == 'B') {
+                pChannel[idx + 0] = b;
+                pChannel[idx + 1] = 0;
+                pChannel[idx + 2] = 0;
+            }
         }
     }
     UpdateAllViews(NULL);
@@ -357,11 +431,11 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
 
 void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
 {
-    // 새 버퍼 생성 (24bit RGB, 흰색)
+    // 1. 새 도화지 버퍼 생성 (흰색)
     BYTE* newCanvas = new BYTE[newW * newH * 3];
     memset(newCanvas, 255, newW * newH * 3); // 전체 흰색
 
-    // 기존 이미지(캔버스) 복사
+    // 2. 기존 이미지 복사 (겹치는 부분만)
     if (m_pImage) {
         int copyW = min(m_width, newW);
         int copyH = min(m_height, newH);
@@ -375,10 +449,34 @@ void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
         delete[] m_pImage;
     }
     m_pImage = newCanvas;
+
+    // 3. 채널 버퍼(R/G/B)도 똑같이 새 크기로 확장/복사/초기화
+    auto resizeChannel = [&](BYTE*& pChannel) {
+        if (!pChannel) return;
+        BYTE* newCh = new BYTE[newW * newH * 3];
+        memset(newCh, 255, newW * newH * 3); // 전체 흰색
+        int copyW = min(m_width, newW);
+        int copyH = min(m_height, newH);
+        for (int y = 0; y < copyH; ++y) {
+            memcpy(
+                newCh + (y * newW * 3),
+                pChannel + (y * m_width * 3),
+                copyW * 3
+            );
+        }
+        delete[] pChannel;
+        pChannel = newCh;
+        };
+
+    resizeChannel(m_pChannelR);
+    resizeChannel(m_pChannelG);
+    resizeChannel(m_pChannelB);
+
+    // 4. 도화지 크기 갱신
     m_width = newW;
     m_height = newH;
 
-    // 모든 뷰에 스크롤/화면 갱신 알리기
+    // 5. 모든 뷰에 스크롤/화면 갱신 알리기
     POSITION pos = GetFirstViewPosition();
     while (pos)
     {
