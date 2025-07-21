@@ -32,6 +32,8 @@ public:
 	void UpdateFonts();
 
 // 특성입니다.
+	private:
+    CStdioFile m_logFile;  // 로그 파일 스트림
 protected:
 	CMFCTabCtrl	m_wndTabs;
 

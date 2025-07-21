@@ -21,6 +21,8 @@ COutputWnd::COutputWnd() noexcept
 
 COutputWnd::~COutputWnd()
 {
+	if (m_logFile.m_hFile != CFile::hFileNull)
+		m_logFile.Close();
 }
 
 BEGIN_MESSAGE_MAP(COutputWnd, CDockablePane)
@@ -74,6 +76,18 @@ int COutputWnd::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	FillBuildWindow();
 	FillDebugWindow();
 	FillFindWindow();
+
+	// === 로그 파일 열기 ===
+	CString logFilePath = _T("log.txt");
+	if (!m_logFile.Open(logFilePath,
+		CFile::modeCreate | CFile::modeNoTruncate | CFile::modeWrite | CFile::typeText))
+	{
+		AfxMessageBox(_T("로그 파일을 열 수 없습니다."));
+	}
+	else
+	{
+		m_logFile.SeekToEnd();  // 기존 파일 이어쓰기
+	}
 
 	return 0;
 }
@@ -201,7 +215,14 @@ void COutputList::OnViewOutput()
 
 void COutputWnd::AddLog(const CString& msg)
 {
-	m_wndOutputDebug.AddString(msg); // 디버그탭에 로그 추가
+	m_wndOutputDebug.AddString(msg); // 디버그 탭에 추가
 	AdjustHorzScroll(m_wndOutputDebug);
+
+	// 파일에 로그 저장
+	if (m_logFile.m_hFile != CFile::hFileNull) {
+		CString logWithNewline = msg + _T("\r\n");
+		m_logFile.WriteString(logWithNewline);
+	}
 }
+
 
