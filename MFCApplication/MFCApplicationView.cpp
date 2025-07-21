@@ -100,20 +100,14 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	}
 	if (!pBuf || nW == 0 || nH == 0) return;
 
-	// 2. 뷰/클라이언트 크기 (스크롤뷰에서 현재 보여지는 영역)
-	CRect clientRect;
-	GetClientRect(&clientRect);
-	int viewW = clientRect.Width();
-	int viewH = clientRect.Height();
+	// 2. 클라이언트/뷰 크기 계산 (중앙정렬 미사용)
+	// CRect clientRect;
+	// GetClientRect(&clientRect);
+	// int viewW = clientRect.Width();
+	// int viewH = clientRect.Height();
+	// int destX = 0, destY = 0; // 중앙정렬 완전히 제거
 
-	// 3. 중앙정렬 오프셋 계산
-	int destX = 0, destY = 0;
-	if (nW < viewW) destX = (viewW - nW) / 2;
-	if (nH < viewH) destY = (viewH - nH) / 2;
-	// 이미지는 항상 (destX, destY) 위치에 그림
-	// (뷰보다 이미지가 크면 destX, destY는 0)
-
-	// 4. DIB 버퍼 준비 (stride 포함)
+	// 3. DIB 버퍼 준비 (stride 포함)
 	BITMAPINFO bmi = {};
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = nW;
@@ -126,7 +120,7 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	for (int y = 0; y < nH; ++y)
 		memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
 
-	// 5. 임시 DC로 이미지 생성
+	// 4. 임시 DC로 이미지 생성
 	CDC memDC;
 	memDC.CreateCompatibleDC(pDC);
 	CBitmap bmp;
@@ -137,26 +131,23 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
 	);
 
-	// 6. 반전/정렬 반영해서 화면 출력
+	// 5. 반전/정렬 반영해서 화면 출력 (항상 (0,0) 기준)
 	if (m_bFlipH && m_bFlipV)
-		pDC->StretchBlt(destX + nW - 1, destY + nH - 1, -nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		pDC->StretchBlt(nW - 1, nH - 1, -nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
 	else if (m_bFlipH)
-		pDC->StretchBlt(destX + nW - 1, destY, -nW, nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		pDC->StretchBlt(nW - 1, 0, -nW, nH, &memDC, 0, 0, nW, nH, SRCCOPY);
 	else if (m_bFlipV)
-		pDC->StretchBlt(destX, destY + nH - 1, nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		pDC->StretchBlt(0, nH - 1, nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
 	else
-		pDC->BitBlt(destX, destY, nW, nH, &memDC, 0, 0, SRCCOPY);
+		pDC->BitBlt(0, 0, nW, nH, &memDC, 0, 0, SRCCOPY);
 
 	memDC.SelectObject(pOldBmp);
 
-	// 7. 도형 그리기 (항상 중앙정렬 오프셋 반영!)
-	auto FlipPoint = [this, nW, nH, viewW, viewH, destX, destY](const CPoint& pt) -> CPoint {
+	// 6. 도형 그리기 (중앙정렬 오프셋 아예 없음)
+	auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
 		CPoint res = pt;
-		// 도형 좌표계: 이미지 기준, 중앙정렬+반전 모두 적용
 		if (m_bFlipH) res.x = nW - 1 - res.x;
 		if (m_bFlipV) res.y = nH - 1 - res.y;
-		res.x += destX;
-		res.y += destY;
 		return res;
 		};
 
@@ -180,7 +171,7 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldBrush);
 	}
 
-	// 8. 미리보기 도형도 마찬가지!
+	// 7. 미리보기 도형도 마찬가지
 	if (m_bDrawing && m_drawType != DRAW_NONE)
 	{
 		CPoint pt1 = FlipPoint(m_startPoint);
@@ -201,6 +192,8 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldBrush);
 	}
 }
+
+
 
 
 
@@ -318,9 +311,9 @@ void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 	if (m_drawType != DRAW_NONE)
 	{
 		m_bDrawing = TRUE;
-		m_startPoint = point;
-		m_endPoint = point;
-		SetCapture();  // 마우스 캡처
+		m_startPoint = point + GetScrollPosition();
+		m_endPoint = m_startPoint;
+		SetCapture();
 	}
 }
 
@@ -328,29 +321,29 @@ void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
 {
 	if (m_bDrawing)
 	{
-		m_endPoint = point;
-		Invalidate(TRUE);  // 화면 다시 그리기
+		m_endPoint = point + GetScrollPosition(); 
+		Invalidate(TRUE);
 	}
 }
 
 void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 {
-	if (m_bDrawing) {
-		m_endPoint = point;
+	if (m_bDrawing)
+	{
+		m_endPoint = point + GetScrollPosition(); 
 		m_bDrawing = FALSE;
 		ReleaseCapture();
 
-		// 도형 정보를 리스트에 저장
 		DrawShape shape;
 		shape.type = m_drawType;
 		shape.start = m_startPoint;
 		shape.end = m_endPoint;
-		shape.fillColor = m_curFillColor;       // <- 이 줄이 반드시 필요!
+		shape.fillColor = m_curFillColor;
 		shape.borderColor = m_curBorderColor;
 		shape.borderWidth = m_curBorderWidth;
 		m_shapes.push_back(shape);
 
-		Invalidate(FALSE); // 최종 도형 그리기
+		Invalidate(FALSE);
 	}
 }
 
