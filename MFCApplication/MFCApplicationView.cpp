@@ -20,9 +20,9 @@
 
 // CMFCApplicationView
 
-IMPLEMENT_DYNCREATE(CMFCApplicationView, CView)
+IMPLEMENT_DYNCREATE(CMFCApplicationView, CScrollView)
 
-BEGIN_MESSAGE_MAP(CMFCApplicationView, CView)
+BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	// 표준 인쇄 명령입니다.
 	ON_COMMAND(ID_FILE_PRINT, &CView::OnFilePrint)
 	ON_COMMAND(ID_FILE_PRINT_DIRECT, &CView::OnFilePrint)
@@ -84,97 +84,12 @@ BOOL CMFCApplicationView::PreCreateWindow(CREATESTRUCT& cs)
 	return CView::PreCreateWindow(cs);
 }
 
-// CMFCApplicationView 그리기
-/*
-void CMFCApplicationView::OnDraw(CDC* pDC)
-{
-
-	CMFCApplicationDoc* pDoc = GetDocument();
-	switch (m_selectedChannel) {
-	case CHANNEL_R:
-		if (!pDoc->m_channelR.IsNull())
-			pDoc->m_channelR.Draw(pDC->GetSafeHdc(), 0, 0);
-		break;
-	case CHANNEL_G:
-		if (!pDoc->m_channelG.IsNull())
-			pDoc->m_channelG.Draw(pDC->GetSafeHdc(), 0, 0);
-		break;
-	case CHANNEL_B:
-		if (!pDoc->m_channelB.IsNull())
-			pDoc->m_channelB.Draw(pDC->GetSafeHdc(), 0, 0);
-		break;
-	default:
-		if (!pDoc->m_image.IsNull())
-			pDoc->m_image.Draw(pDC->GetSafeHdc(), 0, 0);
-	}
-	// 2. 그려진 도형 반복 출력
-	// 저장된 도형 그리기
-	 // 저장된 도형 그리기
-	for (const auto& shape : m_shapes)
-	{
-		// 브러시/펜 생성
-		CBrush brush(shape.fillColor);                  // 채움색
-		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor); // 외곽선
-		CBrush* pOldBrush = pDC->SelectObject(&brush);
-		CPen* pOldPen = pDC->SelectObject(&pen);
-
-		switch (shape.type)
-		{
-		case DRAW_LINE:
-			pDC->MoveTo(shape.start);
-			pDC->LineTo(shape.end);
-			break;
-		case DRAW_RECT:
-			pDC->Rectangle(CRect(shape.start, shape.end));    // 채우기/외곽선 동시적용!
-			break;
-		case DRAW_ELLIPSE:
-			pDC->Ellipse(CRect(shape.start, shape.end));
-			break;
-		}
-		// 원상복귀
-		pDC->SelectObject(pOldPen);
-		pDC->SelectObject(pOldBrush);
-	}
-
-	// --- 미리보기(현재 그리고 있는 도형) ---
-	if (m_bDrawing && m_drawType != DRAW_NONE)
-	{
-		// 예: m_curFillColor, m_curBorderColor, m_curBorderWidth 등
-		CBrush brush(m_curFillColor);
-		CPen pen(PS_SOLID, m_curBorderWidth, m_curBorderColor);
-		CBrush* pOldBrush = pDC->SelectObject(&brush);
-		CPen* pOldPen = pDC->SelectObject(&pen);
-
-		switch (m_drawType)
-		{
-		case DRAW_LINE:
-			pDC->MoveTo(m_startPoint);
-			pDC->LineTo(m_endPoint);
-			break;
-		case DRAW_RECT:
-			pDC->Rectangle(CRect(m_startPoint, m_endPoint));
-			break;
-		case DRAW_ELLIPSE:
-			pDC->Ellipse(CRect(m_startPoint, m_endPoint));
-			break;
-		}
-		// Pen/Brush 원복!
-		pDC->SelectObject(pOldPen);
-		pDC->SelectObject(pOldBrush);
-	}
-}*/
 void CMFCApplicationView::OnDraw(CDC* pDC)
 {
 	CMFCApplicationDoc* pDoc = GetDocument();
 	if (!pDoc) return;
 
-	// 1. 클라이언트 크기 (도형 반전용)
-	CRect clientRect;
-	GetClientRect(&clientRect);
-	int viewW = clientRect.Width();
-	int viewH = clientRect.Height();
-
-	// 2. 현재 선택된 채널의 BYTE* 버퍼
+	// 1. 이미지/채널 선택
 	BYTE* pBuf = pDoc->m_pImage;
 	int nW = pDoc->m_width, nH = pDoc->m_height;
 	switch (m_selectedChannel) {
@@ -185,7 +100,20 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	}
 	if (!pBuf || nW == 0 || nH == 0) return;
 
-	// 3. BITMAPINFO 준비 (24bit)
+	// 2. 뷰/클라이언트 크기 (스크롤뷰에서 현재 보여지는 영역)
+	CRect clientRect;
+	GetClientRect(&clientRect);
+	int viewW = clientRect.Width();
+	int viewH = clientRect.Height();
+
+	// 3. 중앙정렬 오프셋 계산
+	int destX = 0, destY = 0;
+	if (nW < viewW) destX = (viewW - nW) / 2;
+	if (nH < viewH) destY = (viewH - nH) / 2;
+	// 이미지는 항상 (destX, destY) 위치에 그림
+	// (뷰보다 이미지가 크면 destX, destY는 0)
+
+	// 4. DIB 버퍼 준비 (stride 포함)
 	BITMAPINFO bmi = {};
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = nW;
@@ -193,16 +121,12 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	bmi.bmiHeader.biPlanes = 1;
 	bmi.bmiHeader.biBitCount = 24;
 	bmi.bmiHeader.biCompression = BI_RGB;
-
-	// ---- [수정 시작] stride 맞춘 임시 버퍼로 DIB 출력 ----
 	int stride = ((nW * 3) + 3) & ~3;
 	std::vector<BYTE> dibBuf(stride * nH, 0);
-
-	for (int y = 0; y < nH; ++y) {
+	for (int y = 0; y < nH; ++y)
 		memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
-		// 남는 패딩은 이미 0으로 초기화되어 있음
-	}
 
+	// 5. 임시 DC로 이미지 생성
 	CDC memDC;
 	memDC.CreateCompatibleDC(pDC);
 	CBitmap bmp;
@@ -212,16 +136,8 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	::SetDIBitsToDevice(
 		memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
 	);
-	// ---- [수정 끝] ----
 
-
-	// === 중앙 정렬용 위치 계산 ===
-	int destX = (viewW - nW) / 2;
-	int destY = (viewH - nH) / 2;
-	if (destX < 0) destX = 0;
-	if (destY < 0) destY = 0;
-
-	// 5. 반전 상태에 따라 화면에 복사
+	// 6. 반전/정렬 반영해서 화면 출력
 	if (m_bFlipH && m_bFlipV)
 		pDC->StretchBlt(destX + nW - 1, destY + nH - 1, -nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
 	else if (m_bFlipH)
@@ -229,15 +145,18 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	else if (m_bFlipV)
 		pDC->StretchBlt(destX, destY + nH - 1, nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
 	else
-		pDC->BitBlt(destX, destY, min(nW, viewW), min(nH, viewH), &memDC, 0, 0, SRCCOPY);
+		pDC->BitBlt(destX, destY, nW, nH, &memDC, 0, 0, SRCCOPY);
 
 	memDC.SelectObject(pOldBmp);
 
-	// === 도형 및 미리보기 그리기는 기존 코드와 동일하게! ===
-	auto FlipPoint = [this, viewW, viewH](const CPoint& pt) -> CPoint {
+	// 7. 도형 그리기 (항상 중앙정렬 오프셋 반영!)
+	auto FlipPoint = [this, nW, nH, viewW, viewH, destX, destY](const CPoint& pt) -> CPoint {
 		CPoint res = pt;
-		if (m_bFlipH) res.x = viewW - 1 - res.x;
-		if (m_bFlipV) res.y = viewH - 1 - res.y;
+		// 도형 좌표계: 이미지 기준, 중앙정렬+반전 모두 적용
+		if (m_bFlipH) res.x = nW - 1 - res.x;
+		if (m_bFlipV) res.y = nH - 1 - res.y;
+		res.x += destX;
+		res.y += destY;
 		return res;
 		};
 
@@ -261,6 +180,7 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldBrush);
 	}
 
+	// 8. 미리보기 도형도 마찬가지!
 	if (m_bDrawing && m_drawType != DRAW_NONE)
 	{
 		CPoint pt1 = FlipPoint(m_startPoint);
@@ -281,9 +201,6 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldBrush);
 	}
 }
-
-
-
 
 
 
@@ -841,6 +758,16 @@ void CMFCApplicationView::OnInitialUpdate()
 	// 소켓 서버 스레드
 	if (m_pThread == nullptr) {
 		m_pThread = AfxBeginThread(SocketThreadProc, this);
+	}
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (pDoc && pDoc->m_width > 0 && pDoc->m_height > 0) {
+		SetScrollSizes(MM_TEXT, CSize(
+			max(pDoc->m_width, 800),
+			max(pDoc->m_height, 600)
+		));
+	}
+	else {
+		SetScrollSizes(MM_TEXT, CSize(800, 600));
 	}
 }
 

@@ -5,7 +5,7 @@
 #include <vector>  // 추가
 #include <afxsock.h>
 
-class CMFCApplicationView : public CView
+class CMFCApplicationView : public CScrollView
 {
 protected: // serialization에서만 만들어집니다.
     CMFCApplicationView() noexcept;
