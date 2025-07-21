@@ -37,9 +37,7 @@ public:
 	BOOL LoadBMP(LPCTSTR lpszPathName);
 	BOOL SaveBMP(LPCTSTR lpszPathName);
 
-	// (5) (선택) 공백 이미지 생성 (그림판처럼 동작)
-	void CreateBlankImage(int width, int height, COLORREF color = RGB(255, 255, 255));
-
+	void ResizeCanvas(int newW, int newH);
 
 	// 재정의입니다.
 public:

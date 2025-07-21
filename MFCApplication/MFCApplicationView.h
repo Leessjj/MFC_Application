@@ -17,7 +17,6 @@ protected: // serialization에서만 만들어집니다.
     CWinThread* m_pThread = nullptr; // 소켓 쓰레드
     static UINT SocketThreadProc(LPVOID pParam);
     virtual void OnInitialUpdate();
-    // 채널 타입
 
 
     // 그림판 도형 타입
@@ -46,6 +45,24 @@ protected: // serialization에서만 만들어집니다.
     bool m_bFlipV = false;  // 상하반전
 
     CPoint FlipPoint(const CPoint& pt, int width, int height) const;
+
+    enum ResizeHitTest{
+        RESIZE_NONE,
+        RESIZE_RIGHT,
+        RESIZE_BOTTOM,
+        RESIZE_CORNER
+    };
+    ResizeHitTest m_resizeHit = RESIZE_NONE;
+    BOOL m_bResizing = FALSE;
+    CPoint m_resizeStartPt;
+    int m_resizeOrigW = 0, m_resizeOrigH = 0;
+    int m_resizePreviewW = 0, m_resizePreviewH = 0;
+
+    // 리사이즈 판정 함수 선언
+    ResizeHitTest HitTestResizeHandle(CPoint pt);
+
+    bool CMFCApplicationView::IsInCanvas(CPoint pt);
+
 
     // 특성입니다.
 public:

@@ -355,3 +355,37 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
     UpdateAllViews(NULL);
 }
 
+void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
+{
+    // 새 버퍼 생성 (24bit RGB, 흰색)
+    BYTE* newCanvas = new BYTE[newW * newH * 3];
+    memset(newCanvas, 255, newW * newH * 3); // 전체 흰색
+
+    // 기존 이미지(캔버스) 복사
+    if (m_pImage) {
+        int copyW = min(m_width, newW);
+        int copyH = min(m_height, newH);
+        for (int y = 0; y < copyH; ++y) {
+            memcpy(
+                newCanvas + (y * newW * 3),
+                m_pImage + (y * m_width * 3),
+                copyW * 3
+            );
+        }
+        delete[] m_pImage;
+    }
+    m_pImage = newCanvas;
+    m_width = newW;
+    m_height = newH;
+
+    // 모든 뷰에 스크롤/화면 갱신 알리기
+    POSITION pos = GetFirstViewPosition();
+    while (pos)
+    {
+        CView* pView = GetNextView(pos);
+        if (pView->IsKindOf(RUNTIME_CLASS(CScrollView))) {
+            ((CScrollView*)pView)->SetScrollSizes(MM_TEXT, CSize(m_width, m_height));
+        }
+        pView->Invalidate(FALSE);
+    }
+}
