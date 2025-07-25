@@ -70,6 +70,8 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_COMMAND(ID_FILTER_SOBELEDGE, &CMFCApplicationView::OnFilterSobeledge)
 	ON_COMMAND(ID_FILTER_SEPIA, &CMFCApplicationView::OnFilterSepia)
 	ON_COMMAND(ID_EDIT_UNDO, &CMFCApplicationView::OnEditUndo)
+
+	ON_WM_MOUSEWHEEL()
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -94,116 +96,119 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 {
 	CRect clientRect;
 	GetClientRect(&clientRect);
-	pDC->FillSolidRect(clientRect, RGB(211, 211, 211)); 
+	pDC->FillSolidRect(clientRect, RGB(211, 211, 211));
 
 	CMFCApplicationDoc* pDoc = GetDocument();
 	if (!pDoc) return;
 
-    // 1. 이미지/채널 선택
-    BYTE* pBuf = pDoc->m_pImage;
-    int nW = pDoc->m_width, nH = pDoc->m_height;
-    switch (m_selectedChannel) {
-    case CHANNEL_R: if (pDoc->m_pChannelR) pBuf = pDoc->m_pChannelR; break;
-    case CHANNEL_G: if (pDoc->m_pChannelG) pBuf = pDoc->m_pChannelG; break;
-    case CHANNEL_B: if (pDoc->m_pChannelB) pBuf = pDoc->m_pChannelB; break;
-    default: break;
-    }
-    if (!pBuf || nW == 0 || nH == 0) return;
+	// 1. 이미지/채널 선택
+	BYTE* pBuf = pDoc->m_pImage;
+	int nW = pDoc->m_width, nH = pDoc->m_height;
+	switch (m_selectedChannel) {
+	case CHANNEL_R: if (pDoc->m_pChannelR) pBuf = pDoc->m_pChannelR; break;
+	case CHANNEL_G: if (pDoc->m_pChannelG) pBuf = pDoc->m_pChannelG; break;
+	case CHANNEL_B: if (pDoc->m_pChannelB) pBuf = pDoc->m_pChannelB; break;
+	default: break;
+	}
+	if (!pBuf || nW == 0 || nH == 0) return;
 
-    // 2. 클라이언트/뷰 크기 계산 (중앙정렬 미사용)
-    // CRect clientRect;
-    // GetClientRect(&clientRect);
-    // int viewW = clientRect.Width();
-    // int viewH = clientRect.Height();
-    // int destX = 0, destY = 0; // 중앙정렬 완전히 제거
+	// 2. DIB 버퍼 준비 (stride 포함)
+	BITMAPINFO bmi = {};
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = nW;
+	bmi.bmiHeader.biHeight = -nH; // Top-down
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 24;
+	bmi.bmiHeader.biCompression = BI_RGB;
+	int stride = ((nW * 3) + 3) & ~3;
+	std::vector<BYTE> dibBuf(stride * nH, 0);
+	for (int y = 0; y < nH; ++y)
+		memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
 
-    // 3. DIB 버퍼 준비 (stride 포함)
-    BITMAPINFO bmi = {};
-    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bmi.bmiHeader.biWidth = nW;
-    bmi.bmiHeader.biHeight = -nH; // Top-down
-    bmi.bmiHeader.biPlanes = 1;
-    bmi.bmiHeader.biBitCount = 24;
-    bmi.bmiHeader.biCompression = BI_RGB;
-    int stride = ((nW * 3) + 3) & ~3;
-    std::vector<BYTE> dibBuf(stride * nH, 0);
-    for (int y = 0; y < nH; ++y)
-        memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
+	// 3. 임시 DC로 이미지 생성
+	CDC memDC;
+	memDC.CreateCompatibleDC(pDC);
+	CBitmap bmp;
+	bmp.CreateCompatibleBitmap(pDC, nW, nH);
+	CBitmap* pOldBmp = memDC.SelectObject(&bmp);
 
-    // 4. 임시 DC로 이미지 생성
-    CDC memDC;
-    memDC.CreateCompatibleDC(pDC);
-    CBitmap bmp;
-    bmp.CreateCompatibleBitmap(pDC, nW, nH);
-    CBitmap* pOldBmp = memDC.SelectObject(&bmp);
+	::SetDIBitsToDevice(
+		memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
+	);
 
-    ::SetDIBitsToDevice(
-        memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
-    );
+	// 4. Zoom 및 반전 적용해서 화면 출력
+	int drawW = int(nW * m_zoom);
+	int drawH = int(nH * m_zoom);
 
-    // 5. 반전/정렬 반영해서 화면 출력 (항상 (0,0) 기준)
-    if (m_bFlipH && m_bFlipV)
-        pDC->StretchBlt(nW - 1, nH - 1, -nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
-    else if (m_bFlipH)
-        pDC->StretchBlt(nW - 1, 0, -nW, nH, &memDC, 0, 0, nW, nH, SRCCOPY);
-    else if (m_bFlipV)
-        pDC->StretchBlt(0, nH - 1, nW, -nH, &memDC, 0, 0, nW, nH, SRCCOPY);
-    else
-        pDC->BitBlt(0, 0, nW, nH, &memDC, 0, 0, SRCCOPY);
+	if (m_bFlipH && m_bFlipV)
+		pDC->StretchBlt(drawW - 1, drawH - 1, -drawW, -drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
+	else if (m_bFlipH)
+		pDC->StretchBlt(drawW - 1, 0, -drawW, drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
+	else if (m_bFlipV)
+		pDC->StretchBlt(0, drawH - 1, drawW, -drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
+	else
+		pDC->StretchBlt(0, 0, drawW, drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
 
-    memDC.SelectObject(pOldBmp);
+	memDC.SelectObject(pOldBmp);
 
-    // 6. 도형 그리기 (중앙정렬 오프셋 아예 없음)
-    auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
-        CPoint res = pt;
-        if (m_bFlipH) res.x = nW - 1 - res.x;
-        if (m_bFlipV) res.y = nH - 1 - res.y;
-        return res;
-    };
+	// 5. 도형 및 미리보기 등 (좌표에 zoom 곱해서 출력)
+	auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
+		CPoint res = pt;
+		if (m_bFlipH) res.x = nW - 1 - res.x;
+		if (m_bFlipV) res.y = nH - 1 - res.y;
+		return res;
+		};
 
-    for (const auto& shape : m_shapes)
-    {
-        CPoint pt1 = FlipPoint(shape.start);
-        CPoint pt2 = FlipPoint(shape.end);
+	// --- 도형 출력 ---
+	for (const auto& shape : m_shapes)
+	{
+		CPoint pt1 = FlipPoint(shape.start);
+		CPoint pt2 = FlipPoint(shape.end);
+		pt1.x = int(pt1.x * m_zoom); pt1.y = int(pt1.y * m_zoom);
+		pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
 
-        CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
-        CPen* pOldPen = pDC->SelectObject(&pen);
-        CBrush brush(shape.fillColor);
-        CBrush* pOldBrush = pDC->SelectObject(&brush);
+		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+		CBrush brush(shape.fillColor);
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
 
-        switch (shape.type)
-        {
-        case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
-        case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
-        case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
-        }
-        pDC->SelectObject(pOldPen);
-        pDC->SelectObject(pOldBrush);
-    }
+		switch (shape.type)
+		{
+		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
+		}
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
+	}
 
-    // 7. 미리보기 도형도 마찬가지
-    if (m_bDrawing && m_drawType != DRAW_NONE)
-    {
-        CPoint pt1 = FlipPoint(m_startPoint);
-        CPoint pt2 = FlipPoint(m_endPoint);
+	// --- 미리보기 도형 ---
+	if (m_bDrawing && m_drawType != DRAW_NONE)
+	{
+		CPoint pt1 = FlipPoint(m_startPoint);
+		CPoint pt2 = FlipPoint(m_endPoint);
+		pt1.x = int(pt1.x * m_zoom); pt1.y = int(pt1.y * m_zoom);
+		pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
 
-        CPen pen(PS_SOLID, m_curBorderWidth, m_curBorderColor);
-        CPen* pOldPen = pDC->SelectObject(&pen);
-        CBrush brush(m_curFillColor);
-        CBrush* pOldBrush = pDC->SelectObject(&brush);
+		CPen pen(PS_SOLID, m_curBorderWidth, m_curBorderColor);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+		CBrush brush(m_curFillColor);
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
 
-        switch (m_drawType)
-        {
-        case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
-        case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
-        case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
-        }
-        pDC->SelectObject(pOldPen);
-        pDC->SelectObject(pOldBrush);
-    }
-	int canvasW = pDoc->m_width;
-	int canvasH = pDoc->m_height;
-	const int HANDLE_SIZE = 10;
+		switch (m_drawType)
+		{
+		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
+		}
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
+	}
+
+	// --- 리사이즈 핸들 ---
+	int canvasW = int(pDoc->m_width * m_zoom);
+	int canvasH = int(pDoc->m_height * m_zoom);
+	const int HANDLE_SIZE = 10; // 고정
 
 	// 오른쪽 하단 모서리 (코너)
 	pDC->FillSolidRect(canvasW - HANDLE_SIZE / 2, canvasH - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
@@ -212,16 +217,20 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	// 아래쪽(수평 핸들)
 	pDC->FillSolidRect(canvasW - HANDLE_SIZE / 2, canvasH - HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
 
-	// === 리사이즈 미리보기(점선 박스) ===
+	// --- 리사이즈 미리보기(점선 박스) ---
 	if (m_bResizing) {
-		CPen pen(PS_DOT, 1, RGB(0, 0, 255)); // 파란 점선
+		CPen pen(PS_DOT, 1, RGB(0, 0, 255));
 		CPen* pOldPen = pDC->SelectObject(&pen);
-		pDC->Rectangle(0, 0, m_resizePreviewW, m_resizePreviewH);
+		pDC->Rectangle(0, 0, int(m_resizePreviewW * m_zoom), int(m_resizePreviewH * m_zoom));
 		pDC->SelectObject(pOldPen);
 	}
+
+	// --- (옵션) 화면 상단에 확대/축소 배율 표시 ---
+	CString strZoom;
+	strZoom.Format(_T("%.0f%%"), m_zoom * 100.0);
+	pDC->SetBkMode(TRANSPARENT);
+	pDC->TextOutW(10, 10, strZoom);
 }
-
-
 
 
 
@@ -826,21 +835,22 @@ void CMFCApplicationView::OnInitialUpdate()
 {
 	CView::OnInitialUpdate();
 
-	// 소켓 서버 스레드
+	// 소켓 서버 스레드 (기존 코드 그대로)
 	if (m_pThread == nullptr) {
 		m_pThread = AfxBeginThread(SocketThreadProc, this);
 	}
 	CMFCApplicationDoc* pDoc = GetDocument();
 	if (pDoc && pDoc->m_width > 0 && pDoc->m_height > 0) {
 		SetScrollSizes(MM_TEXT, CSize(
-			max(pDoc->m_width, 800),
-			max(pDoc->m_height, 600)
+			int(max(pDoc->m_width * m_zoom, 800)),
+			int(max(pDoc->m_height * m_zoom, 600))
 		));
 	}
 	else {
 		SetScrollSizes(MM_TEXT, CSize(800, 600));
 	}
 }
+
 
 // 도화지의 오른쪽/아래/모서리 핸들 영역 체크
 CMFCApplicationView::ResizeHitTest CMFCApplicationView::HitTestResizeHandle(CPoint pt)
@@ -970,4 +980,28 @@ void CMFCApplicationView::OnEditUndo()
 	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
 	if (pMainFrm)
 		pMainFrm->m_wndOutput.AddLog(_T("Undo(되돌리기) 실행"));
+}
+
+BOOL CMFCApplicationView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+	// Ctrl 키가 눌렸을 때만 동작
+	if (GetKeyState(VK_CONTROL) & 0x8000) {
+		double prevZoom = m_zoom;
+		if (zDelta > 0)      m_zoom *= 1.1; // 확대
+		else if (zDelta < 0) m_zoom /= 1.1; // 축소
+
+		if (m_zoom < 0.1) m_zoom = 0.1;
+		if (m_zoom > 10.0) m_zoom = 10.0;
+
+		// 도화지(이미지) 크기에 배율 적용해서 스크롤 크기 설정
+		CMFCApplicationDoc* pDoc = GetDocument();
+		int w = int(pDoc->m_width * m_zoom);
+		int h = int(pDoc->m_height * m_zoom);
+		SetScrollSizes(MM_TEXT, CSize(w, h));
+
+		Invalidate(FALSE); // 화면 다시 그리기
+		return TRUE;
+	}
+	// Ctrl 없이 휠 돌리면 원래 스크롤 기능
+	return CScrollView::OnMouseWheel(nFlags, zDelta, pt);
 }

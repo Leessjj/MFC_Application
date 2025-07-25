@@ -75,7 +75,7 @@ public:
     // 작업입니다.
 public:
     void DrawAllShapesToDC(CDC* pDC);
-
+    double m_zoom = 1.0;
 
     // 재정의입니다.
 public:
@@ -146,6 +146,9 @@ public:
     afx_msg void OnFilterSobeledge();
     afx_msg void OnFilterSepia();
     afx_msg void OnEditUndo();
+
+    afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
+
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전

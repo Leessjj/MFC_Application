@@ -505,10 +505,14 @@ void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
     {
         CView* pView = GetNextView(pos);
         if (pView->IsKindOf(RUNTIME_CLASS(CScrollView))) {
-            ((CScrollView*)pView)->SetScrollSizes(MM_TEXT, CSize(m_width, m_height));
+            ((CScrollView*)pView)->SetScrollSizes(MM_TEXT, CSize(
+                int(m_width * ((CMFCApplicationView*)pView)->m_zoom),
+                int(m_height * ((CMFCApplicationView*)pView)->m_zoom)
+            ));
         }
         pView->Invalidate(FALSE);
     }
+
 }
 
 void CMFCApplicationDoc::ApplyGrayscale()
