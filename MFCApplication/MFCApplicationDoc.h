@@ -41,6 +41,12 @@ public:
 
 	void ResizeCanvas(int newW, int newH);
 
+	void ApplyGrayscale();
+	void ApplyGaussianBlur();
+	void ApplySobelEdge();
+	void ApplySepia();
+
+
 	// 재정의입니다.
 public:
 	virtual BOOL OnNewDocument();

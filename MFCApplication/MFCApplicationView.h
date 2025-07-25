@@ -142,6 +142,10 @@ public:
     afx_msg LRESULT OnSetBorderColor(WPARAM wParam, LPARAM lParam);
 
     afx_msg void OnFileSaveAs();
+    afx_msg void OnFilterGrayscale();
+    afx_msg void OnFilterGaussianblur();
+    afx_msg void OnFilterSobeledge();
+    afx_msg void OnFilterSepia();
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전

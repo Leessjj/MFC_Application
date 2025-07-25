@@ -65,6 +65,10 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 
 
 	ON_COMMAND(ID_FILE_SAVE_AS, &CMFCApplicationView::OnFileSaveAs)
+	ON_COMMAND(ID_FILTER_GRAYSCALE, &CMFCApplicationView::OnFilterGrayscale)
+	ON_COMMAND(ID_FILTER_GAUSSIANBLUR, &CMFCApplicationView::OnFilterGaussianblur)
+	ON_COMMAND(ID_FILTER_SOBELEDGE, &CMFCApplicationView::OnFilterSobeledge)
+	ON_COMMAND(ID_FILTER_SEPIA, &CMFCApplicationView::OnFilterSepia)
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -916,4 +920,44 @@ void CMFCApplicationView::OnFileSaveAs()
 	CMFCApplicationDoc* pDoc = GetDocument();
 	if (pDoc)
 		pDoc->OnSaveDocument(filePath);
+}
+
+void CMFCApplicationView::OnFilterGrayscale()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("그레이스케일(흑백) 필터 적용"));
+
+	GetDocument()->ApplyGrayscale();
+}
+
+void CMFCApplicationView::OnFilterGaussianblur()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("가우시안 블러 필터 적용"));
+
+	GetDocument()->ApplyGaussianBlur();
+}
+
+void CMFCApplicationView::OnFilterSobeledge()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("엣지 검출(소벨) 필터 적용"));
+
+	GetDocument()->ApplySobelEdge();
+}
+
+void CMFCApplicationView::OnFilterSepia()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("세피아톤 필터 적용"));
+
+	GetDocument()->ApplySepia();
 }

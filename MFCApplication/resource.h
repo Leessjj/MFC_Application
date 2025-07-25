@@ -107,13 +107,22 @@
 #define ID_32790                        32790
 #define IDC_BTN_FILLCOLOR               32791
 #define IDC_BTN_BORDERCOLOR             32792
+#define ID_32793                        32793
+#define ID_32794                        32794
+#define ID_FILTER_GRAYSCALE             32795
+#define ID_32796                        32796
+#define ID_FILTER_GAUSSIANBLUR          32797
+#define ID_32798                        32798
+#define ID_FILTER_SOBELEDGE             32799
+#define ID_32800                        32800
+#define ID_FILTER_SEPIA                 32801
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        310
-#define _APS_NEXT_COMMAND_VALUE         32793
+#define _APS_NEXT_COMMAND_VALUE         32802
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           310
 #endif
