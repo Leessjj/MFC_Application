@@ -74,7 +74,6 @@ public:
 
     // 작업입니다.
 public:
-public:
     void DrawAllShapesToDC(CDC* pDC);
 
 

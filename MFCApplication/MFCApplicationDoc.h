@@ -22,7 +22,6 @@ public:
 	int   m_imgH = 0;   // 실제 이미지 세로
 
 	// (2) 채널 분리(선택)용 버퍼
-	void ApplyChannelToMainImage(char channel);
 	BYTE* m_pChannelR = nullptr;
 	BYTE* m_pChannelG = nullptr;
 	BYTE* m_pChannelB = nullptr;

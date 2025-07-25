@@ -402,29 +402,26 @@ void CMFCApplicationDoc::OnImageFlipVertical()
 }
 
 // --- RGB 채널 추출 ---
+// MFCApplicationDoc.cpp
+
 void CMFCApplicationDoc::ExtractRGBChannel(char channel)
 {
     if (!m_pImage) return;
+
+    PushUndo(); // ★ 이 한 줄로 Undo 100% 지원
+
     int width = m_width, height = m_height;
     int imgW = m_imgW, imgH = m_imgH;
-    BYTE*& pChannel =
-        (channel == 'R') ? m_pChannelR :
-        (channel == 'G') ? m_pChannelG :
-        m_pChannelB;
-
-    if (pChannel) { delete[] pChannel; pChannel = nullptr; }
-    pChannel = new BYTE[width * height * 3]; // 전체 도화지 사이즈는 유지
-
-    // 도화지 전체를 일단 흰색(RGB=255)으로 초기화
-    memset(pChannel, 255, width * height * 3);
 
     CString logMsg;
-    if (channel == 'R') logMsg = _T("R채널 추출");
-    else if (channel == 'G') logMsg = _T("G채널 추출");
-    else if (channel == 'B') logMsg = _T("B채널 추출");
+    if (channel == 'R') logMsg = _T("도화지: R채널로 추출");
+    else if (channel == 'G') logMsg = _T("도화지: G채널로 추출");
+    else if (channel == 'B') logMsg = _T("도화지: B채널로 추출");
+
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm) pMainFrm->m_wndOutput.AddLog(logMsg);
 
+    // 도화지 픽셀을 직접 해당 채널값만 남기도록 덮어쓰기
     for (int y = 0; y < imgH; ++y)
     {
         for (int x = 0; x < imgW; ++x)
@@ -433,52 +430,27 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
             BYTE b = m_pImage[idx + 0];
             BYTE g = m_pImage[idx + 1];
             BYTE r = m_pImage[idx + 2];
+
             if (channel == 'R') {
-                pChannel[idx + 0] = 0;
-                pChannel[idx + 1] = 0;
-                pChannel[idx + 2] = r;
+                m_pImage[idx + 0] = 0;
+                m_pImage[idx + 1] = 0;
+                m_pImage[idx + 2] = r;
             }
             else if (channel == 'G') {
-                pChannel[idx + 0] = 0;
-                pChannel[idx + 1] = g;
-                pChannel[idx + 2] = 0;
+                m_pImage[idx + 0] = 0;
+                m_pImage[idx + 1] = g;
+                m_pImage[idx + 2] = 0;
             }
             else if (channel == 'B') {
-                pChannel[idx + 0] = b;
-                pChannel[idx + 1] = 0;
-                pChannel[idx + 2] = 0;
+                m_pImage[idx + 0] = b;
+                m_pImage[idx + 1] = 0;
+                m_pImage[idx + 2] = 0;
             }
         }
     }
     UpdateAllViews(NULL);
 }
-void CMFCApplicationDoc::ApplyChannelToMainImage(char channel)
-{
-    if (!m_pImage) return;
 
-    BYTE* pSrc =
-        (channel == 'R') ? m_pChannelR :
-        (channel == 'G') ? m_pChannelG :
-        (channel == 'B') ? m_pChannelB :
-        nullptr;
-
-    if (!pSrc) return;
-
-    PushUndo(); // ★ Undo 적용: 도화지 바꾸기 직전에 꼭!
-
-    // 도화지(m_pImage)에 해당 채널 버퍼 복사
-    memcpy(m_pImage, pSrc, m_width * m_height * 3);
-
-    // 로그 등 추가
-    CString logMsg;
-    if (channel == 'R') logMsg = _T("도화지: R채널로 변환");
-    else if (channel == 'G') logMsg = _T("도화지: G채널로 변환");
-    else if (channel == 'B') logMsg = _T("도화지: B채널로 변환");
-    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-    if (pMainFrm) pMainFrm->m_wndOutput.AddLog(logMsg);
-
-    UpdateAllViews(NULL);
-}
 
 void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
 {
