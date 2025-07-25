@@ -4,7 +4,7 @@
 
 
 #pragma once
-
+#include <vector>
 
 class CMFCApplicationDoc : public CDocument
 {
@@ -22,6 +22,7 @@ public:
 	int   m_imgH = 0;   // 실제 이미지 세로
 
 	// (2) 채널 분리(선택)용 버퍼
+	void ApplyChannelToMainImage(char channel);
 	BYTE* m_pChannelR = nullptr;
 	BYTE* m_pChannelG = nullptr;
 	BYTE* m_pChannelB = nullptr;
@@ -40,12 +41,14 @@ public:
 	BOOL SaveBMP(LPCTSTR lpszPathName);
 
 	void ResizeCanvas(int newW, int newH);
-
+	//필터
 	void ApplyGrayscale();
 	void ApplyGaussianBlur();
 	void ApplySobelEdge();
 	void ApplySepia();
 
+	void PushUndo();
+	void Undo();
 
 	// 재정의입니다.
 public:
@@ -67,6 +70,8 @@ public:
 #endif
 
 protected:
+	//undo
+	std::vector<std::vector<BYTE>> m_undoStack;
 
 	// 생성된 메시지 맵 함수
 protected:

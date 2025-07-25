@@ -146,6 +146,7 @@ public:
     afx_msg void OnFilterGaussianblur();
     afx_msg void OnFilterSobeledge();
     afx_msg void OnFilterSepia();
+    afx_msg void OnEditUndo();
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전

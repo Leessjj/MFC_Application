@@ -69,6 +69,7 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_COMMAND(ID_FILTER_GAUSSIANBLUR, &CMFCApplicationView::OnFilterGaussianblur)
 	ON_COMMAND(ID_FILTER_SOBELEDGE, &CMFCApplicationView::OnFilterSobeledge)
 	ON_COMMAND(ID_FILTER_SEPIA, &CMFCApplicationView::OnFilterSepia)
+	ON_COMMAND(ID_EDIT_UNDO, &CMFCApplicationView::OnEditUndo)
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -960,4 +961,13 @@ void CMFCApplicationView::OnFilterSepia()
 		pMainFrm->m_wndOutput.AddLog(_T("세피아톤 필터 적용"));
 
 	GetDocument()->ApplySepia();
+}
+
+void CMFCApplicationView::OnEditUndo()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	GetDocument()->Undo();
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("Undo(되돌리기) 실행"));
 }

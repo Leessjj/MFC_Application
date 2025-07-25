@@ -452,6 +452,33 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
     }
     UpdateAllViews(NULL);
 }
+void CMFCApplicationDoc::ApplyChannelToMainImage(char channel)
+{
+    if (!m_pImage) return;
+
+    BYTE* pSrc =
+        (channel == 'R') ? m_pChannelR :
+        (channel == 'G') ? m_pChannelG :
+        (channel == 'B') ? m_pChannelB :
+        nullptr;
+
+    if (!pSrc) return;
+
+    PushUndo(); // ★ Undo 적용: 도화지 바꾸기 직전에 꼭!
+
+    // 도화지(m_pImage)에 해당 채널 버퍼 복사
+    memcpy(m_pImage, pSrc, m_width * m_height * 3);
+
+    // 로그 등 추가
+    CString logMsg;
+    if (channel == 'R') logMsg = _T("도화지: R채널로 변환");
+    else if (channel == 'G') logMsg = _T("도화지: G채널로 변환");
+    else if (channel == 'B') logMsg = _T("도화지: B채널로 변환");
+    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    if (pMainFrm) pMainFrm->m_wndOutput.AddLog(logMsg);
+
+    UpdateAllViews(NULL);
+}
 
 void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
 {
@@ -514,6 +541,7 @@ void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
 
 void CMFCApplicationDoc::ApplyGrayscale()
 {
+    PushUndo();
     if (!m_pImage) return;
     int nPix = m_width * m_height;
     for (int i = 0; i < nPix; ++i)
@@ -531,6 +559,7 @@ void CMFCApplicationDoc::ApplyGrayscale()
 }
 void CMFCApplicationDoc::ApplyGaussianBlur()
 {
+    PushUndo();
     if (!m_pImage) return;
     int w = m_width, h = m_height;
     // 3x3 가우시안 커널 (합 = 16)
@@ -579,6 +608,7 @@ void CMFCApplicationDoc::ApplyGaussianBlur()
 
 void CMFCApplicationDoc::ApplySobelEdge()
 {
+    PushUndo();
     if (!m_pImage) return;
     int w = m_width, h = m_height;
     // 그레이스케일로 먼저 변환
@@ -641,6 +671,7 @@ void CMFCApplicationDoc::ApplySobelEdge()
 
 void CMFCApplicationDoc::ApplySepia()
 {
+    PushUndo();
     if (!m_pImage) return;
     int nPix = m_width * m_height;
     for (int i = 0; i < nPix; ++i)
@@ -661,5 +692,25 @@ void CMFCApplicationDoc::ApplySepia()
         m_pImage[i * 3 + 1] = (BYTE)tg;
         m_pImage[i * 3 + 2] = (BYTE)tr;
     }
+    UpdateAllViews(NULL);
+}
+
+void CMFCApplicationDoc::PushUndo()
+{
+    if (!m_pImage) return;
+    // 최대 스택 크기 제한(10단계 등) - 옵션
+    const size_t MAX_UNDO = 10;
+    if (m_undoStack.size() >= MAX_UNDO)
+        m_undoStack.erase(m_undoStack.begin()); // 가장 오래된 것 삭제
+
+    std::vector<BYTE> backup(m_pImage, m_pImage + m_width * m_height * 3);
+    m_undoStack.push_back(std::move(backup));
+}
+void CMFCApplicationDoc::Undo()
+{
+    if (m_undoStack.empty()) return;
+    std::vector<BYTE>& backup = m_undoStack.back();
+    memcpy(m_pImage, backup.data(), m_width * m_height * 3);
+    m_undoStack.pop_back();
     UpdateAllViews(NULL);
 }
