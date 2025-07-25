@@ -651,7 +651,7 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 				if (strCmd.Left(12) == _T("DRAW_ELLIPSE")) {
 					::PostMessage(pView->m_hWnd, WM_USER + 110, 0, 0);
 				}
-				if (strCmd.Left(12) == _T("SAVE_ALL")) {
+				if (strCmd.Left(12) == _T("SAVE")) {
 					::PostMessage(pView->m_hWnd, WM_USER + 111, 0, 0);
 				}
 				if (strCmd.Left(13) == _T("SET_FILLCOLOR"))
@@ -685,7 +685,14 @@ LRESULT CMFCApplicationView::OnOpenImageFileFromNet(WPARAM, LPARAM lParam)
 {
 	CString* pPath = (CString*)lParam;
 
-	GetDocument()->OnOpenDocument(*pPath);
+	// 문서 포인터 얻기
+	CMFCApplicationDoc* pDoc = GetDocument();
+
+	// 아래처럼 변경!
+	if (pDoc->OnOpenDocument(*pPath)) {
+		pDoc->SetPathName(*pPath, FALSE); // 경로 및 제목 갱신, bAddToMRU는 필요에 따라 TRUE/FALSE
+	}
+
 	delete pPath; // 메모리 해제
 	return 0;
 }
@@ -771,36 +778,21 @@ LRESULT CMFCApplicationView::OnDrawEllipseFromNet(WPARAM, LPARAM)
 LRESULT CMFCApplicationView::OnSaveAllFromNet(WPARAM, LPARAM)
 {
 
-	CFileDialog dlg(FALSE, _T("bmp"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("BMP Files (*.bmp)|*.bmp||"));
-	if (dlg.DoModal() == IDOK)
-	{
+	CString path = GetDocument()->GetPathName();
+	if (!path.IsEmpty()) {
+		GetDocument()->OnSaveDocument(path);
+
+		// 로그
 		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
 		if (pMainFrm)
-			pMainFrm->m_wndOutput.AddLog(_T("모두 저장"));
-		CString filePath = dlg.GetPathName();
-		// 화면 저장 코드 바로 작성!
-		CRect rect;
-		GetClientRect(&rect);
-		CDC memDC;
-		CBitmap bitmap;
+			pMainFrm->m_wndOutput.AddLog(_T("기본 저장"));
 
-		CDC* pDC = GetDC();
-		memDC.CreateCompatibleDC(pDC);
-		bitmap.CreateCompatibleBitmap(pDC, rect.Width(), rect.Height());
-		CBitmap* pOldBitmap = memDC.SelectObject(&bitmap);
-
-		memDC.BitBlt(0, 0, rect.Width(), rect.Height(), pDC, 0, 0, SRCCOPY);
-
-		// 저장
-		CImage image;
-		image.Attach((HBITMAP)bitmap.Detach());
-		image.Save(filePath, Gdiplus::ImageFormatBMP);
-		image.Detach();
-
-		memDC.SelectObject(pOldBitmap);
-		ReleaseDC(pDC);
+		Invalidate(); // 필요시 화면 갱신
 	}
-	Invalidate();
+	else {
+		// 만약 경로가 비어있다면(아직 파일로 저장된 적이 없는 경우)
+		AfxMessageBox(_T("저장할 경로가 없습니다. (파일을 먼저 열어주세요)"));
+	}
 	return 0;
 }
 

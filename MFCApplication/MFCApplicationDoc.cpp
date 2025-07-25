@@ -273,33 +273,29 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
     if (pMainFrm)
         pMainFrm->m_wndOutput.AddLog(_T("문서 저장"));
 
-    // 도화지 크기
     int nW = m_width, nH = m_height;
+    if (nW <= 0 || nH <= 0 || !m_pImage)
+        return FALSE;
 
-    CDC memDC;
-    memDC.CreateCompatibleDC(nullptr);
-    CClientDC desktopDC(NULL);
-    CBitmap bitmap;
-    bitmap.CreateCompatibleBitmap(&desktopDC, nW, nH);
-    CBitmap* pOldBmp = memDC.SelectObject(&bitmap);
-
-    // 배경(흰색)
-    memDC.FillSolidRect(0, 0, nW, nH, RGB(255, 255, 255));
-
-    // ----------- [중요!] 현재 선택된 채널 추출 -------------
-    // (현재 활성 View에서 m_selectedChannel을 가져옴)
+    // ===== [1] 도형까지 합성된 이미지 생성 =====
+    // (뷰 객체 얻기)
     CMFCApplicationView* pView = nullptr;
     POSITION pos = GetFirstViewPosition();
-    while (pos)
-    {
+    while (pos) {
         CView* v = GetNextView(pos);
         if (v->IsKindOf(RUNTIME_CLASS(CMFCApplicationView))) {
             pView = (CMFCApplicationView*)v;
-            break; // SDI는 1개만
+            break; // SDI라면 첫 번째 뷰만!
         }
     }
-    if (!pView) return FALSE;
+    if (!pView)
+        return FALSE;
 
+    // --- 24비트 DIB 버퍼 생성
+    int stride = ((nW * 3) + 3) & ~3;
+    std::vector<BYTE> dibBuf(stride * nH, 255); // 기본 흰색
+
+    // [2] 선택된 채널 버퍼 얻기 (R/G/B/Org)
     BYTE* pBuf = m_pImage;
     switch (pView->m_selectedChannel) {
     case CMFCApplicationView::CHANNEL_R:
@@ -310,37 +306,65 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
         if (m_pChannelB) pBuf = m_pChannelB; break;
     }
 
+    // --- 이미지 버퍼를 DIB 버퍼로 복사
+    for (int y = 0; y < nH; ++y)
+        memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
 
+    // --- 메모리 DC 생성 후, DIB 버퍼 → DC
+    CClientDC desktopDC(NULL);
+    CDC memDC;
+    memDC.CreateCompatibleDC(&desktopDC);
+    CBitmap bitmap;
+    bitmap.CreateCompatibleBitmap(&desktopDC, nW, nH);
+    CBitmap* pOldBmp = memDC.SelectObject(&bitmap);
+
+    // --- BITMAPINFO 세팅
     BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = nW;
-    bmi.bmiHeader.biHeight = -nH;
+    bmi.bmiHeader.biHeight = -nH; // top-down
     bmi.bmiHeader.biPlanes = 1;
     bmi.bmiHeader.biBitCount = 24;
     bmi.bmiHeader.biCompression = BI_RGB;
-    int stride = ((nW * 3) + 3) & ~3;
-    std::vector<BYTE> dibBuf(stride * nH, 0);
-
-    for (int y = 0; y < nH; ++y)
-        memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
 
     ::SetDIBitsToDevice(
         memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
     );
 
-    // ----------- 도형까지 합성 -------------
+    // --- [3] 도형까지 합성
     pView->DrawAllShapesToDC(&memDC);
 
-    // ----------- 비트맵을 파일로 저장 -------------
-    CImage image;
-    image.Attach((HBITMAP)bitmap.Detach());
-    HRESULT hr = image.Save(lpszPathName, Gdiplus::ImageFormatBMP); // PNG/JPG 등도 가능
-    image.Detach();
+    // --- [4] DC에 그려진 비트맵을 24비트 DIB 버퍼로 다시 추출
+    ::GetDIBits(memDC.GetSafeHdc(), (HBITMAP)bitmap, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS);
 
     memDC.SelectObject(pOldBmp);
 
-    return SUCCEEDED(hr);
+    // ===== [5] 24비트 BMP 파일로 저장 =====
+    CFile file;
+    if (!file.Open(lpszPathName, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary))
+        return FALSE;
+
+    int pad = (4 - (nW * 3) % 4) % 4;
+    int fileSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER)
+        + (nW * 3 + pad) * nH;
+
+    BITMAPFILEHEADER header = { 0x4D42, (DWORD)fileSize, 0, 0,
+        sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) };
+    BITMAPINFOHEADER info = { sizeof(BITMAPINFOHEADER), nW, nH, 1, 24, 0, 0, 0, 0, 0, 0 };
+
+    file.Write(&header, sizeof(header));
+    file.Write(&info, sizeof(info));
+    BYTE zeros[4] = { 0, };
+    for (int y = nH - 1; y >= 0; --y)
+    {
+        file.Write(dibBuf.data() + y * stride, nW * 3);
+        file.Write(zeros, pad);
+    }
+    file.Close();
+
+    return TRUE;
 }
+
 
 
 
