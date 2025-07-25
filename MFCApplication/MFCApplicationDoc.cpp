@@ -16,8 +16,8 @@
 #include "MainFrm.h"
 
 #include <windows.h>   // RGB, GetRValue 등
-#include <algorithm>   // std::swap
-
+#include <vector>
+#include <algorithm>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -243,6 +243,8 @@ BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
         pMainFrm->m_wndOutput.AddLog(lpszPathName);
 
     FreeImage();
+    m_defectRegions.clear();
+    m_stddev = 0;
 
     if (!LoadBMP(lpszPathName)) {
         AfxMessageBox(_T("이미지 로드 실패 (24bit BMP만 지원)"));
@@ -689,4 +691,59 @@ void CMFCApplicationDoc::Undo()
     memcpy(m_pImage, backup.data(), m_width * m_height * 3);
     m_undoStack.pop_back();
     UpdateAllViews(NULL);
+}
+
+void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
+{
+    m_defectRegions.clear();
+    if (!m_pImage) return;
+    int w = m_width, h = m_height;
+
+    // 1. Gray 변환
+    std::vector<BYTE> gray(w * h);
+    for (int i = 0; i < w * h; ++i) {
+        BYTE b = m_pImage[i * 3 + 0];
+        BYTE g = m_pImage[i * 3 + 1];
+        BYTE r = m_pImage[i * 3 + 2];
+        gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+    }
+
+    // 2. 국부 평균(7x7 영역) 구하기
+    int ksize = 3; // 3이면 7x7영역, 2면 5x5
+    std::vector<BYTE> mask(w * h, 0);
+    for (int y = ksize; y < h - ksize; ++y) {
+        for (int x = ksize; x < w - ksize; ++x) {
+            int sum = 0, cnt = 0;
+            for (int dy = -ksize; dy <= ksize; ++dy)
+                for (int dx = -ksize; dx <= ksize; ++dx) {
+                    sum += gray[(y + dy) * w + (x + dx)];
+                    ++cnt;
+                }
+            int avg = sum / cnt;
+            if (abs(gray[y * w + x] - avg) > diffThres) // diffThres: 민감도 8~20 추천
+                mask[y * w + x] = 255;
+        }
+    }
+
+    // 3. 미세점(1~5픽셀) 연결된 점 라벨링
+    for (int y = ksize; y < h - ksize; ++y) {
+        for (int x = ksize; x < w - ksize; ++x) {
+            if (mask[y * w + x] == 255) {
+                // 주변 확장 안 하고 그냥 작은 박스
+                m_defectRegions.push_back({ x - 1, y - 1, 3, 3 });
+            }
+        }
+    }
+    /*CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    if (pMainFrm) {
+        CString msg;
+        msg.Format(_T("=== 검출된 Defect 총 %d개 ==="), (int)m_defectRegions.size());
+        pMainFrm->m_wndOutput.AddLog(msg);
+        for (size_t i = 0; i < m_defectRegions.size(); ++i) {
+            const auto& reg = m_defectRegions[i];
+            msg.Format(_T("Defect %d: x=%d, y=%d, w=%d, h=%d"),
+                (int)i + 1, reg.x, reg.y, reg.w, reg.h);
+            pMainFrm->m_wndOutput.AddLog(msg);
+        }
+    }*/
 }

@@ -26,6 +26,17 @@ public:
 	BYTE* m_pChannelG = nullptr;
 	BYTE* m_pChannelB = nullptr;
 
+	// --- [1] 결함 영역 구조체/벡터 선언 ---
+	struct DefectRegion {
+		int x, y, w, h;
+	};
+	std::vector<DefectRegion> m_defectRegions;
+
+	// --- [2] 결함 검출 함수 선언 ---
+	void DetectDefects(int threshold = 40, int minSize = 10);
+
+	double m_stddev = 0;
+
 	// 작업입니다.
 public:
 	// (3) 기존 작업 함수들은 동일하게 제공, 다만 버퍼 기반 구현!

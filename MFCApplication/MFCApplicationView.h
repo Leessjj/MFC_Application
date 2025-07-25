@@ -149,6 +149,8 @@ public:
 
     afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 
+    afx_msg void OnDetectDefects();
+    afx_msg void OnCheckNoise();
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전

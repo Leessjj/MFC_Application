@@ -72,6 +72,8 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_COMMAND(ID_EDIT_UNDO, &CMFCApplicationView::OnEditUndo)
 
 	ON_WM_MOUSEWHEEL()
+	ON_COMMAND(ID_DETECT_DEFECTS, &CMFCApplicationView::OnDetectDefects)
+	ON_COMMAND(ID_CHECK_NOISE, &CMFCApplicationView::OnCheckNoise)
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -205,6 +207,20 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldBrush);
 	}
 
+	// --- 결함 박스 빨간 사각형으로 그림 ---
+	if (!pDoc->m_defectRegions.empty()) {
+		CPen defectPen(PS_SOLID, 2, RGB(255, 0, 0));
+		CPen* pOldPen = pDC->SelectObject(&defectPen);
+		for (const auto& reg : pDoc->m_defectRegions)
+		{
+			int x1 = int(reg.x * m_zoom), y1 = int(reg.y * m_zoom);
+			int x2 = int((reg.x + reg.w) * m_zoom), y2 = int((reg.y + reg.h) * m_zoom);
+			pDC->Rectangle(x1, y1, x2, y2);
+		}
+		pDC->SelectObject(pOldPen);
+	}
+
+
 	// --- 리사이즈 핸들 ---
 	int canvasW = int(pDoc->m_width * m_zoom);
 	int canvasH = int(pDoc->m_height * m_zoom);
@@ -226,10 +242,34 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	}
 
 	// --- (옵션) 화면 상단에 확대/축소 배율 표시 ---
-	CString strZoom;
+	/*CString strZoom;
 	strZoom.Format(_T("%.0f%%"), m_zoom * 100.0);
 	pDC->SetBkMode(TRANSPARENT);
-	pDC->TextOutW(10, 10, strZoom);
+	pDC->TextOutW(10, 10, strZoom);*/
+	// --- (아래 부분을 OnDraw 마지막에 추가!) ---
+
+// 노이즈 검사 후만 PASS/FAIL 표시 (m_stddev > 0)
+	if (pDoc->m_stddev > 0) {
+		bool isNoiseOK = (pDoc->m_stddev < 15.0); // 기준 조정 가능
+
+		CString resultText = isNoiseOK ? _T("PASS") : _T("FAIL");
+		COLORREF resultColor = isNoiseOK ? RGB(0, 180, 0) : RGB(220, 0, 0);
+
+		// 큰 폰트로 PASS/FAIL
+		CFont bigFont;
+		bigFont.CreatePointFont(240, _T("맑은 고딕"));
+		CFont* pOldFont = pDC->SelectObject(&bigFont);
+
+		// 위치: 좌상단 (30,30)~(300,120), 필요시 조정
+		CRect resultRect(30, 30, 300, 120);
+		pDC->SetTextColor(resultColor);
+		pDC->SetBkMode(TRANSPARENT);
+		pDC->DrawText(resultText, &resultRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+		pDC->SelectObject(pOldFont);
+
+	}
+
 }
 
 
@@ -1004,4 +1044,55 @@ BOOL CMFCApplicationView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 	}
 	// Ctrl 없이 휠 돌리면 원래 스크롤 기능
 	return CScrollView::OnMouseWheel(nFlags, zDelta, pt);
+}
+
+void CMFCApplicationView::OnDetectDefects()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	GetDocument()->DetectDefects();
+	Invalidate(FALSE); // 갱신
+}
+
+void CMFCApplicationView::OnCheckNoise()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (!pDoc) return;
+
+	// Gray 변환 (최근 이미지 기준, 기존 방식 재활용)
+	int w = pDoc->m_width, h = pDoc->m_height;
+	if (!pDoc->m_pImage) return;
+	std::vector<BYTE> gray(w * h);
+	for (int i = 0; i < w * h; ++i) {
+		BYTE b = pDoc->m_pImage[i * 3 + 0];
+		BYTE g = pDoc->m_pImage[i * 3 + 1];
+		BYTE r = pDoc->m_pImage[i * 3 + 2];
+		gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+	}
+
+	// 표준편차(노이즈) 계산
+	double sum = 0, sqsum = 0;
+	int N = (int)gray.size();
+	for (int i = 0; i < N; ++i) {
+		sum += gray[i];
+		sqsum += double(gray[i]) * gray[i];
+	}
+	double mean = sum / N;
+	double var = (sqsum / N) - (mean * mean);
+	double stddev = sqrt(var);
+
+	// 노이즈 판정 (예: 15.0 기준)
+	bool isNoiseOK = (stddev < 15.0);
+
+	// 로그로 결과 남기기
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm) {
+		CString msg;
+		msg.Format(_T("[Noise] StdDev: %.2f - %s"), stddev, isNoiseOK ? _T("OK") : _T("NG"));
+		pMainFrm->m_wndOutput.AddLog(msg);
+	}
+
+	// (화면에 별도 PASS/FAIL 표시 원하면, 멤버변수로 상태 저장 후 Invalidate 호출)
+	pDoc->m_stddev = stddev; // Doc에 저장해두면 OnDraw에서 활용 가능
+	Invalidate(FALSE);       // 화면 갱신
 }
