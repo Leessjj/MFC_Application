@@ -33,7 +33,7 @@ IMPLEMENT_DYNCREATE(CMFCApplicationDoc, CDocument)
 
 CMFCApplicationDoc::CMFCApplicationDoc() noexcept
 {
-	// TODO: 여기에 일회성 생성 코드를 추가합니다.
+    // TODO: 여기에 일회성 생성 코드를 추가합니다.
 
 }
 
@@ -43,13 +43,13 @@ CMFCApplicationDoc::~CMFCApplicationDoc()
 
 BOOL CMFCApplicationDoc::OnNewDocument()
 {
-	if (!CDocument::OnNewDocument())
-		return FALSE;
+    if (!CDocument::OnNewDocument())
+        return FALSE;
 
-	// TODO: 여기에 재초기화 코드를 추가합니다.
-	// SDI 문서는 이 문서를 다시 사용합니다.
+    // TODO: 여기에 재초기화 코드를 추가합니다.
+    // SDI 문서는 이 문서를 다시 사용합니다.
 
-	return TRUE;
+    return TRUE;
 }
 
 
@@ -59,14 +59,14 @@ BOOL CMFCApplicationDoc::OnNewDocument()
 
 void CMFCApplicationDoc::Serialize(CArchive& ar)
 {
-	if (ar.IsStoring())
-	{
-		// TODO: 여기에 저장 코드를 추가합니다.
-	}
-	else
-	{
-		// TODO: 여기에 로딩 코드를 추가합니다.
-	}
+    if (ar.IsStoring())
+    {
+        // TODO: 여기에 저장 코드를 추가합니다.
+    }
+    else
+    {
+        // TODO: 여기에 로딩 코드를 추가합니다.
+    }
 }
 
 #ifdef SHARED_HANDLERS
@@ -74,51 +74,51 @@ void CMFCApplicationDoc::Serialize(CArchive& ar)
 // 축소판 그림을 지원합니다.
 void CMFCApplicationDoc::OnDrawThumbnail(CDC& dc, LPRECT lprcBounds)
 {
-	// 문서의 데이터를 그리려면 이 코드를 수정하십시오.
-	dc.FillSolidRect(lprcBounds, RGB(255, 255, 255));
+    // 문서의 데이터를 그리려면 이 코드를 수정하십시오.
+    dc.FillSolidRect(lprcBounds, RGB(255, 255, 255));
 
-	CString strText = _T("TODO: implement thumbnail drawing here");
-	LOGFONT lf;
+    CString strText = _T("TODO: implement thumbnail drawing here");
+    LOGFONT lf;
 
-	CFont* pDefaultGUIFont = CFont::FromHandle((HFONT)GetStockObject(DEFAULT_GUI_FONT));
-	pDefaultGUIFont->GetLogFont(&lf);
-	lf.lfHeight = 36;
+    CFont* pDefaultGUIFont = CFont::FromHandle((HFONT)GetStockObject(DEFAULT_GUI_FONT));
+    pDefaultGUIFont->GetLogFont(&lf);
+    lf.lfHeight = 36;
 
-	CFont fontDraw;
-	fontDraw.CreateFontIndirect(&lf);
+    CFont fontDraw;
+    fontDraw.CreateFontIndirect(&lf);
 
-	CFont* pOldFont = dc.SelectObject(&fontDraw);
-	dc.DrawText(strText, lprcBounds, DT_CENTER | DT_WORDBREAK);
-	dc.SelectObject(pOldFont);
+    CFont* pOldFont = dc.SelectObject(&fontDraw);
+    dc.DrawText(strText, lprcBounds, DT_CENTER | DT_WORDBREAK);
+    dc.SelectObject(pOldFont);
 }
 
 // 검색 처리기를 지원합니다.
 void CMFCApplicationDoc::InitializeSearchContent()
 {
-	CString strSearchContent;
-	// 문서의 데이터에서 검색 콘텐츠를 설정합니다.
-	// 콘텐츠 부분은 ";"로 구분되어야 합니다.
+    CString strSearchContent;
+    // 문서의 데이터에서 검색 콘텐츠를 설정합니다.
+    // 콘텐츠 부분은 ";"로 구분되어야 합니다.
 
-	// 예: strSearchContent = _T("point;rectangle;circle;ole object;");
-	SetSearchContent(strSearchContent);
+    // 예: strSearchContent = _T("point;rectangle;circle;ole object;");
+    SetSearchContent(strSearchContent);
 }
 
 void CMFCApplicationDoc::SetSearchContent(const CString& value)
 {
-	if (value.IsEmpty())
-	{
-		RemoveChunk(PKEY_Search_Contents.fmtid, PKEY_Search_Contents.pid);
-	}
-	else
-	{
-		CMFCFilterChunkValueImpl* pChunk = nullptr;
-		ATLTRY(pChunk = new CMFCFilterChunkValueImpl);
-		if (pChunk != nullptr)
-		{
-			pChunk->SetTextValue(PKEY_Search_Contents, value, CHUNK_TEXT);
-			SetChunkValue(pChunk);
-		}
-	}
+    if (value.IsEmpty())
+    {
+        RemoveChunk(PKEY_Search_Contents.fmtid, PKEY_Search_Contents.pid);
+    }
+    else
+    {
+        CMFCFilterChunkValueImpl* pChunk = nullptr;
+        ATLTRY(pChunk = new CMFCFilterChunkValueImpl);
+        if (pChunk != nullptr)
+        {
+            pChunk->SetTextValue(PKEY_Search_Contents, value, CHUNK_TEXT);
+            SetChunkValue(pChunk);
+        }
+    }
 }
 
 #endif // SHARED_HANDLERS
@@ -128,12 +128,12 @@ void CMFCApplicationDoc::SetSearchContent(const CString& value)
 #ifdef _DEBUG
 void CMFCApplicationDoc::AssertValid() const
 {
-	CDocument::AssertValid();
+    CDocument::AssertValid();
 }
 
 void CMFCApplicationDoc::Dump(CDumpContext& dc) const
 {
-	CDocument::Dump(dc);
+    CDocument::Dump(dc);
 }
 #endif //_DEBUG
 
@@ -240,6 +240,7 @@ BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
 
     FreeImage();
     m_defectRegions.clear();
+    m_stainRegions.clear();
     m_stddev = 0;
 
     if (!LoadBMP(lpszPathName)) {
@@ -673,7 +674,7 @@ void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
     }
 
     // 2. 국부 평균(7x7 영역) 구하기
-    int ksize = 3; // 3이면 7x7영역, 2면 5x5
+    int ksize = 3;
     std::vector<BYTE> mask(w * h, 0);
     for (int y = ksize; y < h - ksize; ++y) {
         for (int x = ksize; x < w - ksize; ++x) {
@@ -684,24 +685,63 @@ void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
                     ++cnt;
                 }
             int avg = sum / cnt;
-            if (abs(gray[y * w + x] - avg) > diffThres) // diffThres: 민감도 8~20 추천
+            if (abs(gray[y * w + x] - avg) > diffThres)
                 mask[y * w + x] = 255;
         }
     }
 
-    // 3. 미세점(1~5픽셀) 연결된 점 라벨링
+    // 3. 미세점 중심점 모으기
+    struct Pt { int x, y; };
+    std::vector<Pt> centers;
     for (int y = ksize; y < h - ksize; ++y) {
         for (int x = ksize; x < w - ksize; ++x) {
             if (mask[y * w + x] == 255) {
-                // 주변 확장 안 하고 그냥 작은 박스
-                m_defectRegions.push_back({ x - 1, y - 1, 3, 3 });
+                centers.push_back({ x, y });
             }
         }
     }
+
+    // 4. 가까운 점들끼리 병합(100px 이내면 하나의 ROI)
+    struct DefectGroup { int minx, miny, maxx, maxy; std::vector<Pt> pts; };
+    std::vector<DefectGroup> groups;
+    int mergeDist = 5;
+
+    for (auto& p : centers) {
+        bool merged = false;
+        for (auto& g : groups) {
+            for (auto& cp : g.pts) {
+                int dx = p.x - cp.x, dy = p.y - cp.y;
+                if (dx * dx + dy * dy <= mergeDist * mergeDist) {
+                    // 병합: 박스 확장, 점 추가
+                    g.minx = min(g.minx, p.x - 1);
+                    g.maxx = max(g.maxx, p.x + 1);
+                    g.miny = min(g.miny, p.y - 1);
+                    g.maxy = max(g.maxy, p.y + 1);
+                    g.pts.push_back(p);
+                    merged = true;
+                    break;
+                }
+            }
+            if (merged) break;
+        }
+        if (!merged) {
+            groups.push_back({ p.x - 1, p.y - 1, p.x + 1, p.y + 1, {p} });
+        }
+    }
+
+    // 5. ROI 벡터 저장
+    m_defectRegions.clear();
+    for (auto& g : groups) {
+        int w = g.maxx - g.minx + 1, h = g.maxy - g.miny + 1;
+        if (w * h >= minSize) // 필요하면 minSize(최소 넓이)로 걸러도 됨
+            m_defectRegions.push_back({ g.minx, g.miny, w, h });
+    }
+
+    // 로그 출력
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm) {
         CString msg;
-        msg.Format(_T("=== 검출된 Defect 총 %d개 ==="), (int)m_defectRegions.size());
+        msg.Format(_T("=== Defect 검출 %d개 ==="), (int)m_defectRegions.size());
         pMainFrm->m_wndOutput.AddLog(msg);
         for (size_t i = 0; i < m_defectRegions.size(); ++i) {
             const auto& reg = m_defectRegions[i];
@@ -712,7 +752,7 @@ void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
     }
 }
 
-// --- CMFCApplicationDoc.cpp에 추가하세요 ---
+
 void CMFCApplicationDoc::DetectStainRegions()
 {
     m_stainRegions.clear();
@@ -806,16 +846,49 @@ void CMFCApplicationDoc::DetectStainRegions()
         }
     }
 
-    // 7. ROI 저장
+    // 7. ROI 병합 (중심점 거리 100이하면 하나로 취급)
+    struct StainGroup {
+        int minx, miny, maxx, maxy;
+        std::vector<std::pair<int, int>> centers;
+    };
+    std::vector<StainGroup> groups;
+    int mergeDist = 100;
+
     for (auto& b : blobs) {
-        m_stainRegions.push_back({ b.minx, b.miny, b.maxx - b.minx + 1, b.maxy - b.miny + 1 });
+        int cx = (b.minx + b.maxx) / 2;
+        int cy = (b.miny + b.maxy) / 2;
+        bool merged = false;
+        for (auto& g : groups) {
+            for (auto& pc : g.centers) {
+                int dx = cx - pc.first, dy = cy - pc.second;
+                if (dx * dx + dy * dy <= mergeDist * mergeDist) {
+                    // 병합: 범위 확장, 중심 추가
+                    g.minx = min(g.minx, b.minx);
+                    g.miny = min(g.miny, b.miny);
+                    g.maxx = max(g.maxx, b.maxx);
+                    g.maxy = max(g.maxy, b.maxy);
+                    g.centers.push_back({ cx, cy });
+                    merged = true;
+                    break;
+                }
+            }
+            if (merged) break;
+        }
+        if (!merged) {
+            groups.push_back({ b.minx, b.miny, b.maxx, b.maxy, { {cx, cy} } });
+        }
+    }
+
+    m_stainRegions.clear();
+    for (auto& g : groups) {
+        m_stainRegions.push_back({ g.minx, g.miny, g.maxx - g.minx + 1, g.maxy - g.miny + 1 });
     }
 
     // 8. Output 로그
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm) {
         CString msg;
-        msg.Format(_T("[Diff+적분영상] Stain(멍) 검출 %d개"), (int)m_stainRegions.size());
+        msg.Format(_T("== Stain 검출 %d개 =="), (int)m_stainRegions.size());
         pMainFrm->m_wndOutput.AddLog(msg);
         for (size_t i = 0; i < m_stainRegions.size(); ++i) {
             const auto& reg = m_stainRegions[i];
@@ -824,4 +897,3 @@ void CMFCApplicationDoc::DetectStainRegions()
         }
     }
 }
-

@@ -210,21 +210,6 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldPen);
 		pDC->SelectObject(pOldBrush);
 	}
-
-	// --- 결함 박스 빨간 사각형으로 그림 ---
-	if (!pDoc->m_defectRegions.empty()) {
-		CPen defectPen(PS_SOLID, 2, RGB(255, 0, 0));
-		CPen* pOldPen = pDC->SelectObject(&defectPen);
-		for (const auto& reg : pDoc->m_defectRegions)
-		{
-			int x1 = int(reg.x * m_zoom), y1 = int(reg.y * m_zoom);
-			int x2 = int((reg.x + reg.w) * m_zoom), y2 = int((reg.y + reg.h) * m_zoom);
-			pDC->Rectangle(x1, y1, x2, y2);
-		}
-		pDC->SelectObject(pOldPen);
-	}
-
-
 	// --- 리사이즈 핸들 ---
 	int canvasW = int(pDoc->m_width * m_zoom);
 	int canvasH = int(pDoc->m_height * m_zoom);
@@ -252,6 +237,21 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	pDC->TextOutW(10, 10, strZoom);*/
 	// --- (아래 부분을 OnDraw 마지막에 추가!) ---
 
+	// --- 결함 박스 빨간 사각형으로 그림 ---
+	if (!pDoc->m_defectRegions.empty()) {
+		CPen defectPen(PS_SOLID, 2, RGB(255, 0, 0));
+		CPen* pOldPen = pDC->SelectObject(&defectPen);
+
+		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+		for (const auto& reg : pDoc->m_defectRegions)
+		{
+			int x1 = int(reg.x * m_zoom), y1 = int(reg.y * m_zoom);
+			int x2 = int((reg.x + reg.w) * m_zoom), y2 = int((reg.y + reg.h) * m_zoom);
+			pDC->Rectangle(x1, y1, x2, y2);
+		}
+		pDC->SelectObject(pOldPen);
+	}
+
 // 노이즈 검사 후만 PASS/FAIL 표시 (m_stddev > 0)
 	if (pDoc->m_stddev > 0) {
 		bool isNoiseOK = (pDoc->m_stddev < 15.0); // 기준 조정 가능
@@ -274,17 +274,26 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 
 	}
 	if (!pDoc->m_stainRegions.empty()) {
-		CPen stainPen(PS_SOLID, 2, RGB(255, 0, 255)); // 진한 보라색(원하면 색 변경)
+		CPen stainPen(PS_SOLID, 1, RGB(255, 0, 0)); 
 		CPen* pOldPen = pDC->SelectObject(&stainPen);
+
+		// ★ Brush를 투명(NULL_BRUSH)으로 설정!
+		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+		int expand = int(50 * m_zoom); // 20픽셀 확장
+
 		for (const auto& reg : pDoc->m_stainRegions) {
-			int x1 = int(reg.x * m_zoom);
-			int y1 = int(reg.y * m_zoom);
-			int x2 = int((reg.x + reg.w) * m_zoom);
-			int y2 = int((reg.y + reg.h) * m_zoom);
+			int x1 = int(reg.x * m_zoom) - expand;
+			int y1 = int(reg.y * m_zoom) - expand;
+			int x2 = int((reg.x + reg.w) * m_zoom) + expand;
+			int y2 = int((reg.y + reg.h) * m_zoom) + expand;
 			pDC->Rectangle(x1, y1, x2, y2);
 		}
+
+		// 원래 브러시, 펜으로 복원
+		pDC->SelectObject(pOldBrush);
 		pDC->SelectObject(pOldPen);
 	}
+
 
 	
 }
@@ -1125,8 +1134,10 @@ void CMFCApplicationView::OnCheckNoise()
 	// 로그로 결과 남기기
 	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
 	if (pMainFrm) {
+		pMainFrm->m_wndOutput.AddLog(_T("== Noise 검출 =="));
+
 		CString msg;
-		msg.Format(_T("[Noise] StdDev: %.2f - %s"), stddev, isNoiseOK ? _T("OK") : _T("NG"));
+		msg.Format(_T("StdDev: %.2f - %s"), stddev, isNoiseOK ? _T("PASS") : _T("FAIL"));
 		pMainFrm->m_wndOutput.AddLog(msg);
 	}
 
