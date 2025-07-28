@@ -2031,3 +2031,4 @@ Stain 3: x=2591, y=2058, w=26, h=44
 C:\education\20250721_C:\education\20250721_[Noise] StdDev: 30.53 - FAIL
 C:\education\20250721_== Noise C:\education\20250721_== Noise C:\education\20250721_== Noise StdDev: 29.60 - FAIL
 C:\education\20250721_== Noise StdDev: 5.94 - PASS
+C:\education\20250721_C:\education\20250721_Undo(C:\education\20250721_C:\education\20250721_Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(Undo(Undo(C:\education\20250721_

@@ -77,6 +77,8 @@ public:
     double m_zoom = 1.0;
 
     CPoint ViewToImage(const CPoint& pt, double zoom, bool flipH, bool flipV, int imgW, int imgH);
+    void RemoveShapesOutsideCanvas(int canvasW, int canvasH);
+
     // 재정의입니다.
 public:
     virtual void OnDraw(CDC* pDC);  // 이 뷰를 그리기 위해 재정의되었습니다.

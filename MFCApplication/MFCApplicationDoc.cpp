@@ -418,7 +418,6 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
     UpdateAllViews(NULL);
 }
 
-
 void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
 {
     // 1. 새 도화지 버퍼 생성 (흰색)
@@ -440,7 +439,7 @@ void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
     }
     m_pImage = newCanvas;
 
-    // 3. 채널 버퍼(R/G/B)도 똑같이 새 크기로 확장/복사/초기화
+    // 3. 채널 버퍼(R/G/B)도 새 크기로 확장/복사/초기화
     auto resizeChannel = [&](BYTE*& pChannel) {
         if (!pChannel) return;
         BYTE* newCh = new BYTE[newW * newH * 3];
@@ -466,59 +465,65 @@ void CMFCApplicationDoc::ResizeCanvas(int newW, int newH)
     m_width = newW;
     m_height = newH;
 
-    // 5. 모든 뷰에 스크롤/화면 갱신 알리기
+    // 5. 모든 뷰에 스크롤/화면 갱신 알리기 + 도형도 자르기
     POSITION pos = GetFirstViewPosition();
     while (pos)
     {
         CView* pView = GetNextView(pos);
         if (pView->IsKindOf(RUNTIME_CLASS(CScrollView))) {
-            ((CScrollView*)pView)->SetScrollSizes(MM_TEXT, CSize(
-                int(m_width * ((CMFCApplicationView*)pView)->m_zoom),
-                int(m_height * ((CMFCApplicationView*)pView)->m_zoom)
+            auto* pMyView = (CMFCApplicationView*)pView;
+            pMyView->SetScrollSizes(MM_TEXT, CSize(
+                int(m_width * pMyView->m_zoom),
+                int(m_height * pMyView->m_zoom)
             ));
+            // === 도형 리스트도 캔버스 크기에 맞게 잘라내기 ===
+            pMyView->RemoveShapesOutsideCanvas(m_width, m_height);
         }
         pView->Invalidate(FALSE);
     }
-
 }
+
 
 void CMFCApplicationDoc::ApplyGrayscale()
 {
     PushUndo();
     if (!m_pImage) return;
-    int nPix = m_width * m_height;
-    for (int i = 0; i < nPix; ++i)
-    {
-        BYTE b = m_pImage[i * 3 + 0];
-        BYTE g = m_pImage[i * 3 + 1];
-        BYTE r = m_pImage[i * 3 + 2];
-        // 가중치 방식이 더 자연스러움 (0.299R + 0.587G + 0.114B)
-        BYTE gray = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
-        m_pImage[i * 3 + 0] = gray;
-        m_pImage[i * 3 + 1] = gray;
-        m_pImage[i * 3 + 2] = gray;
+    // === 이미지 영역만 필터! ===
+    for (int y = 0; y < m_imgH; ++y) {
+        for (int x = 0; x < m_imgW; ++x) {
+            int idx = y * m_width + x; // 도화지 한 줄 크기
+            BYTE b = m_pImage[idx * 3 + 0];
+            BYTE g = m_pImage[idx * 3 + 1];
+            BYTE r = m_pImage[idx * 3 + 2];
+            BYTE gray = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+            m_pImage[idx * 3 + 0] = gray;
+            m_pImage[idx * 3 + 1] = gray;
+            m_pImage[idx * 3 + 2] = gray;
+        }
     }
     UpdateAllViews(NULL);
 }
+
 void CMFCApplicationDoc::ApplyGaussianBlur()
 {
     PushUndo();
     if (!m_pImage) return;
-    int w = m_width, h = m_height;
-    // 3x3 가우시안 커널 (합 = 16)
+    int w = m_width, h = m_height;      // 도화지 전체
+    int imgW = m_imgW, imgH = m_imgH;   // 실제 이미지 영역
+
     const int kernel[3][3] = {
         {1, 2, 1},
         {2, 4, 2},
         {1, 2, 1}
     };
 
-    // 임시 버퍼에 결과 저장 (원본 덮어쓰기 방지)
     BYTE* pOut = new BYTE[w * h * 3];
     memcpy(pOut, m_pImage, w * h * 3);
 
-    for (int y = 1; y < h - 1; ++y)
+    // 반드시 이미지 실제 크기까지만 블러 적용!
+    for (int y = 1; y < imgH - 1; ++y)
     {
-        for (int x = 1; x < w - 1; ++x)
+        for (int x = 1; x < imgW - 1; ++x)
         {
             int sumB = 0, sumG = 0, sumR = 0;
             int sumK = 0;
@@ -541,11 +546,8 @@ void CMFCApplicationDoc::ApplyGaussianBlur()
             pOut[outIdx + 2] = (BYTE)(sumR / sumK);
         }
     }
-
-    // 테두리 픽셀은 원본 유지 (성능·간결함 위함)
     memcpy(m_pImage, pOut, w * h * 3);
     delete[] pOut;
-
     UpdateAllViews(NULL);
 }
 
@@ -553,8 +555,10 @@ void CMFCApplicationDoc::ApplySobelEdge()
 {
     PushUndo();
     if (!m_pImage) return;
-    int w = m_width, h = m_height;
-    // 그레이스케일로 먼저 변환
+    int w = m_width, h = m_height;         // 도화지 전체
+    int imgW = m_imgW, imgH = m_imgH;      // 실제 이미지 크기만!
+
+    // 그레이스케일로 변환 (전체)
     std::vector<BYTE> gray(w * h, 0);
     for (int i = 0; i < w * h; ++i)
     {
@@ -564,7 +568,7 @@ void CMFCApplicationDoc::ApplySobelEdge()
         gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
     }
 
-    // 결과 버퍼
+    // 결과 버퍼 (전체)
     std::vector<BYTE> out(w * h, 0);
 
     // 소벨 커널
@@ -579,10 +583,10 @@ void CMFCApplicationDoc::ApplySobelEdge()
         { -1, -2, -1 }
     };
 
-    // 소벨 연산
-    for (int y = 1; y < h - 1; ++y)
+    // 반드시 이미지 영역만
+    for (int y = 1; y < imgH - 1; ++y)
     {
-        for (int x = 1; x < w - 1; ++x)
+        for (int x = 1; x < imgW - 1; ++x)
         {
             int gx = 0, gy = 0;
             for (int ky = -1; ky <= 1; ++ky)
@@ -591,7 +595,7 @@ void CMFCApplicationDoc::ApplySobelEdge()
                 {
                     int px = x + kx;
                     int py = y + ky;
-                    int val = gray[py * w + px];
+                    int val = gray[py * w + px]; // 도화지 stride 사용!
                     gx += val * Gx[ky + 1][kx + 1];
                     gy += val * Gy[ky + 1][kx + 1];
                 }
@@ -603,11 +607,15 @@ void CMFCApplicationDoc::ApplySobelEdge()
     }
 
     // 결과를 m_pImage에 적용 (흑백, R=G=B)
-    for (int i = 0; i < w * h; ++i)
+    for (int y = 0; y < imgH; ++y)
     {
-        m_pImage[i * 3 + 0] = out[i];
-        m_pImage[i * 3 + 1] = out[i];
-        m_pImage[i * 3 + 2] = out[i];
+        for (int x = 0; x < imgW; ++x)
+        {
+            int idx = (y * w + x) * 3;
+            m_pImage[idx + 0] = out[y * w + x];
+            m_pImage[idx + 1] = out[y * w + x];
+            m_pImage[idx + 2] = out[y * w + x];
+        }
     }
     UpdateAllViews(NULL);
 }
@@ -616,27 +624,34 @@ void CMFCApplicationDoc::ApplySepia()
 {
     PushUndo();
     if (!m_pImage) return;
-    int nPix = m_width * m_height;
-    for (int i = 0; i < nPix; ++i)
+    int w = m_width, h = m_height;
+    int imgW = m_imgW, imgH = m_imgH;
+
+    for (int y = 0; y < imgH; ++y)
     {
-        BYTE b = m_pImage[i * 3 + 0];
-        BYTE g = m_pImage[i * 3 + 1];
-        BYTE r = m_pImage[i * 3 + 2];
+        for (int x = 0; x < imgW; ++x)
+        {
+            int idx = (y * w + x) * 3;
+            BYTE b = m_pImage[idx + 0];
+            BYTE g = m_pImage[idx + 1];
+            BYTE r = m_pImage[idx + 2];
 
-        int tr = (int)(0.393 * r + 0.769 * g + 0.189 * b);
-        int tg = (int)(0.349 * r + 0.686 * g + 0.168 * b);
-        int tb = (int)(0.272 * r + 0.534 * g + 0.131 * b);
+            int tr = (int)(0.393 * r + 0.769 * g + 0.189 * b);
+            int tg = (int)(0.349 * r + 0.686 * g + 0.168 * b);
+            int tb = (int)(0.272 * r + 0.534 * g + 0.131 * b);
 
-        if (tr > 255) tr = 255;
-        if (tg > 255) tg = 255;
-        if (tb > 255) tb = 255;
+            if (tr > 255) tr = 255;
+            if (tg > 255) tg = 255;
+            if (tb > 255) tb = 255;
 
-        m_pImage[i * 3 + 0] = (BYTE)tb;
-        m_pImage[i * 3 + 1] = (BYTE)tg;
-        m_pImage[i * 3 + 2] = (BYTE)tr;
+            m_pImage[idx + 0] = (BYTE)tb;
+            m_pImage[idx + 1] = (BYTE)tg;
+            m_pImage[idx + 2] = (BYTE)tr;
+        }
     }
     UpdateAllViews(NULL);
 }
+
 
 void CMFCApplicationDoc::PushUndo()
 {
