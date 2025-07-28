@@ -18,6 +18,7 @@
 #include <windows.h>   // RGB, GetRValue 등
 #include <vector>
 #include <algorithm>
+#include <queue>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -697,7 +698,7 @@ void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
             }
         }
     }
-    /*CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm) {
         CString msg;
         msg.Format(_T("=== 검출된 Defect 총 %d개 ==="), (int)m_defectRegions.size());
@@ -708,5 +709,106 @@ void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
                 (int)i + 1, reg.x, reg.y, reg.w, reg.h);
             pMainFrm->m_wndOutput.AddLog(msg);
         }
-    }*/
+    }
+}
+
+// --- CMFCApplicationDoc.cpp에 추가하세요 ---
+void CMFCApplicationDoc::DetectStainRegions()
+{
+    m_stainRegions.clear();
+    if (!m_pImage) return;
+    int w = m_width, h = m_height;
+
+    // 1. Gray 변환
+    std::vector<BYTE> gray(w * h);
+    for (int i = 0; i < w * h; ++i) {
+        BYTE b = m_pImage[i * 3 + 0];
+        BYTE g = m_pImage[i * 3 + 1];
+        BYTE r = m_pImage[i * 3 + 2];
+        gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+    }
+
+    // 2. Blur (큰 kernel, 멍보다 크게)
+    std::vector<BYTE> blur(w * h, 0);
+    int ksize = 30; // (멍 지름 30픽셀이면 15, 더 크면 20~25)
+    for (int y = ksize; y < h - ksize; ++y) {
+        for (int x = ksize; x < w - ksize; ++x) {
+            int sum = 0, cnt = 0;
+            for (int dy = -ksize; dy <= ksize; ++dy)
+                for (int dx = -ksize; dx <= ksize; ++dx) {
+                    sum += gray[(y + dy) * w + (x + dx)];
+                    cnt++;
+                }
+            blur[y * w + x] = (BYTE)(sum / cnt);
+        }
+    }
+
+    // 3. Diff(blur-gray)
+    std::vector<int> diff(w * h, 0);
+    for (int i = 0; i < w * h; ++i)
+        diff[i] = int(blur[i]) - int(gray[i]);
+
+    // 4. Threshold & binary mask (흐릿한 멍도 검출)
+    std::vector<BYTE> mask(w * h, 0);
+    int diffThres = 3; // 민감하게: 3~8 추천, 조절 필요
+    for (int i = 0; i < w * h; ++i)
+        if (diff[i] > diffThres)
+            mask[i] = 255;
+
+    // 5. Blob labeling(DFS/BFS, 4-connect)
+    struct Blob {
+        int minx, miny, maxx, maxy, npix;
+    };
+    std::vector<Blob> blobs;
+    std::vector<bool> visited(w * h, false);
+    const int dx[4] = { 1,-1,0,0 }, dy[4] = { 0,0,1,-1 };
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            int idx = y * w + x;
+            if (mask[idx] == 255 && !visited[idx]) {
+                // DFS
+                int minx = x, maxx = x, miny = y, maxy = y, npix = 0;
+                std::vector<std::pair<int, int>> stack;
+                stack.push_back({ x, y });
+                visited[idx] = true;
+                while (!stack.empty()) {
+                    auto [cx, cy] = stack.back(); stack.pop_back();
+                    int cidx = cy * w + cx;
+                    minx = min(minx, cx); maxx = max(maxx, cx);
+                    miny = min(miny, cy); maxy = max(maxy, cy);
+                    npix++;
+                    for (int d = 0; d < 4; ++d) {
+                        int nx = cx + dx[d], ny = cy + dy[d];
+                        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                        int nidx = ny * w + nx;
+                        if (mask[nidx] == 255 && !visited[nidx]) {
+                            stack.push_back({ nx, ny });
+                            visited[nidx] = true;
+                        }
+                    }
+                }
+                // (최소 멍 크기 제한)
+                if (npix > 50) // 픽셀 수 제한(조절)
+                    blobs.push_back({ minx, miny, maxx, maxy, npix });
+            }
+        }
+    }
+
+    // 6. ROI 저장
+    for (auto& b : blobs) {
+        m_stainRegions.push_back({ b.minx, b.miny, b.maxx - b.minx + 1, b.maxy - b.miny + 1 });
+    }
+
+    // 7. Output 로그
+    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    if (pMainFrm) {
+        CString msg;
+        msg.Format(_T("[Diff] Stain(멍) 검출 %d개"), (int)m_stainRegions.size());
+        pMainFrm->m_wndOutput.AddLog(msg);
+        for (size_t i = 0; i < m_stainRegions.size(); ++i) {
+            const auto& reg = m_stainRegions[i];
+            msg.Format(_T("Stain %d: x=%d, y=%d, w=%d, h=%d"), (int)i + 1, reg.x, reg.y, reg.w, reg.h);
+            pMainFrm->m_wndOutput.AddLog(msg);
+        }
+    }
 }

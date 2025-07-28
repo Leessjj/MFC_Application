@@ -74,6 +74,7 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_WM_MOUSEWHEEL()
 	ON_COMMAND(ID_DETECT_DEFECTS, &CMFCApplicationView::OnDetectDefects)
 	ON_COMMAND(ID_CHECK_NOISE, &CMFCApplicationView::OnCheckNoise)
+	ON_COMMAND(ID_DETECT_STAIN, &CMFCApplicationView::OnDetectStain)
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -272,7 +273,20 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		pDC->SelectObject(pOldFont);
 
 	}
+	if (!pDoc->m_stainRegions.empty()) {
+		CPen stainPen(PS_SOLID, 2, RGB(255, 0, 255)); // 진한 보라색(원하면 색 변경)
+		CPen* pOldPen = pDC->SelectObject(&stainPen);
+		for (const auto& reg : pDoc->m_stainRegions) {
+			int x1 = int(reg.x * m_zoom);
+			int y1 = int(reg.y * m_zoom);
+			int x2 = int((reg.x + reg.w) * m_zoom);
+			int y2 = int((reg.y + reg.h) * m_zoom);
+			pDC->Rectangle(x1, y1, x2, y2);
+		}
+		pDC->SelectObject(pOldPen);
+	}
 
+	
 }
 
 
@@ -1119,4 +1133,14 @@ void CMFCApplicationView::OnCheckNoise()
 	// (화면에 별도 PASS/FAIL 표시 원하면, 멤버변수로 상태 저장 후 Invalidate 호출)
 	pDoc->m_stddev = stddev; // Doc에 저장해두면 OnDraw에서 활용 가능
 	Invalidate(FALSE);       // 화면 갱신
+}
+
+void CMFCApplicationView::OnDetectStain()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (pDoc) {
+		pDoc->DetectStainRegions(); // 실제 검출
+		Invalidate(FALSE); // 뷰 갱신(박스 표시)
+	}
 }

@@ -151,6 +151,7 @@ public:
 
     afx_msg void OnDetectDefects();
     afx_msg void OnCheckNoise();
+    afx_msg void OnDetectStain();
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전
