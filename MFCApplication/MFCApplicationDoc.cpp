@@ -258,6 +258,7 @@ BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
         CMFCApplicationView* pMyView = dynamic_cast<CMFCApplicationView*>(pView);
         if (pMyView) {
             pMyView->m_selectedChannel = CMFCApplicationView::CHANNEL_ORG;
+            pMyView->m_shapes.clear();
         }
     }
 
