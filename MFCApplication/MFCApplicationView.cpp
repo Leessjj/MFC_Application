@@ -382,6 +382,14 @@ void CMFCApplicationView::OnDrawEllipse()
 	m_drawType = DRAW_ELLIPSE;
 }
 
+CPoint CMFCApplicationView::ViewToImage(const CPoint& pt, double zoom, bool flipH, bool flipV, int imgW, int imgH)
+{
+	int x = int(pt.x / zoom);
+	int y = int(pt.y / zoom);
+	if (flipH) x = imgW - 1 - x;
+	if (flipV) y = imgH - 1 - y;
+	return CPoint(x, y);
+}
 
 void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 {
@@ -396,15 +404,19 @@ void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 			m_resizePreviewW = m_resizeOrigW;
 			m_resizePreviewH = m_resizeOrigH;
 			SetCapture();
-			return; // 리사이즈 시작 시 도형 그리기 등 안탐
+			return;
 		}
 	}
 	if (!IsInCanvas(point)) return;
 	if (m_drawType != DRAW_NONE)
 	{
 		m_bDrawing = TRUE;
-		m_startPoint = point + GetScrollPosition();
-		m_endPoint = m_startPoint;
+		// === 좌표 변환 적용 ===
+		CMFCApplicationDoc* pDoc = GetDocument();
+		CPoint imgPt = ViewToImage(point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+			pDoc->m_width, pDoc->m_height);
+		m_startPoint = imgPt;
+		m_endPoint = imgPt;
 		SetCapture();
 	}
 }
@@ -426,7 +438,7 @@ void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
 		int newH = m_resizeOrigH;
 
 		if (m_resizeHit == RESIZE_RIGHT)
-			newW = max(50, m_resizeOrigW + delta.x); // 최소크기 50
+			newW = max(50, m_resizeOrigW + delta.x);
 		else if (m_resizeHit == RESIZE_BOTTOM)
 			newH = max(50, m_resizeOrigH + delta.y);
 		else if (m_resizeHit == RESIZE_CORNER) {
@@ -436,16 +448,21 @@ void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
 
 		m_resizePreviewW = newW;
 		m_resizePreviewH = newH;
-		Invalidate(FALSE); // 미리보기 갱신(점선 박스)
+		Invalidate(FALSE);
 		return;
 	}
 	if (!IsInCanvas(point)) return;
 	if (m_bDrawing)
 	{
-		m_endPoint = point + GetScrollPosition(); 
+		// === 좌표 변환 적용 ===
+		CMFCApplicationDoc* pDoc = GetDocument();
+		CPoint imgPt = ViewToImage(point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+			pDoc->m_width, pDoc->m_height);
+		m_endPoint = imgPt;
 		Invalidate(TRUE);
 	}
 }
+
 
 void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 {
@@ -456,8 +473,8 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 		int finalH = m_resizePreviewH;
 		CMFCApplicationDoc* pDoc = GetDocument();
 		if (finalW != pDoc->m_width || finalH != pDoc->m_height)
-			pDoc->ResizeCanvas(finalW, finalH); // Doc에서 버퍼/스크롤 업데이트
-		Invalidate(FALSE); // 화면 갱신
+			pDoc->ResizeCanvas(finalW, finalH);
+		Invalidate(FALSE);
 		return;
 	}
 
@@ -465,7 +482,11 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 
 	if (m_bDrawing)
 	{
-		m_endPoint = point + GetScrollPosition(); 
+		// === 좌표 변환 적용 ===
+		CMFCApplicationDoc* pDoc = GetDocument();
+		CPoint imgPt = ViewToImage(point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+			pDoc->m_width, pDoc->m_height);
+		m_endPoint = imgPt;
 		m_bDrawing = FALSE;
 		ReleaseCapture();
 

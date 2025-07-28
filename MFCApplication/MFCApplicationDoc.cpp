@@ -27,11 +27,6 @@
 
 IMPLEMENT_DYNCREATE(CMFCApplicationDoc, CDocument)
 
-BEGIN_MESSAGE_MAP(CMFCApplicationDoc, CDocument)
-	ON_COMMAND(ID_IMAGE_FLIP_HORIZONTAL, &CMFCApplicationDoc::OnImageFlipHorizontal)
-	ON_COMMAND(ID_IMAGE_FLIP_VERTICAL, &CMFCApplicationDoc::OnImageFlipVertical)
-END_MESSAGE_MAP()
-
 
 // CMFCApplicationDoc 생성/소멸
 
@@ -267,10 +262,24 @@ BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
     UpdateAllViews(NULL);
     return TRUE;
 }
+// MFCApplicationDoc.cpp
+
+void CMFCApplicationDoc::FlipBuffer(const BYTE* src, BYTE* dst, int width, int height, bool flipH, bool flipV)
+{
+    for (int y = 0; y < height; ++y) {
+        int newY = flipV ? (height - 1 - y) : y;
+        for (int x = 0; x < width; ++x) {
+            int newX = flipH ? (width - 1 - x) : x;
+            for (int c = 0; c < 3; ++c) {
+                dst[(newY * width + newX) * 3 + c] = src[(y * width + x) * 3 + c];
+            }
+        }
+    }
+}
+
 
 BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
 {
-    // 로그 출력(기존대로 유지)
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm)
         pMainFrm->m_wndOutput.AddLog(_T("문서 저장"));
@@ -279,40 +288,30 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
     if (nW <= 0 || nH <= 0 || !m_pImage)
         return FALSE;
 
-    // ===== [1] 도형까지 합성된 이미지 생성 =====
-    // (뷰 객체 얻기)
+    // ① 현재 뷰의 반전 옵션을 읽음
     CMFCApplicationView* pView = nullptr;
     POSITION pos = GetFirstViewPosition();
     while (pos) {
         CView* v = GetNextView(pos);
         if (v->IsKindOf(RUNTIME_CLASS(CMFCApplicationView))) {
             pView = (CMFCApplicationView*)v;
-            break; // SDI라면 첫 번째 뷰만!
+            break;
         }
     }
     if (!pView)
         return FALSE;
 
-    // --- 24비트 DIB 버퍼 생성
+    // ② [NEW] 반전된 이미지 버퍼 만들기
+    std::vector<BYTE> flippedBuf(nW * nH * 3);
+    FlipBuffer(m_pImage, flippedBuf.data(), nW, nH, pView->m_bFlipH, pView->m_bFlipV);
+
+    // ③ DIB 버퍼로 복사 (stride 맞추기)
     int stride = ((nW * 3) + 3) & ~3;
-    std::vector<BYTE> dibBuf(stride * nH, 255); // 기본 흰색
-
-    // [2] 선택된 채널 버퍼 얻기 (R/G/B/Org)
-    BYTE* pBuf = m_pImage;
-    switch (pView->m_selectedChannel) {
-    case CMFCApplicationView::CHANNEL_R:
-        if (m_pChannelR) pBuf = m_pChannelR; break;
-    case CMFCApplicationView::CHANNEL_G:
-        if (m_pChannelG) pBuf = m_pChannelG; break;
-    case CMFCApplicationView::CHANNEL_B:
-        if (m_pChannelB) pBuf = m_pChannelB; break;
-    }
-
-    // --- 이미지 버퍼를 DIB 버퍼로 복사
+    std::vector<BYTE> dibBuf(stride * nH, 255);
     for (int y = 0; y < nH; ++y)
-        memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
+        memcpy(&dibBuf[y * stride], flippedBuf.data() + y * nW * 3, nW * 3);
 
-    // --- 메모리 DC 생성 후, DIB 버퍼 → DC
+    // ④ 메모리 DC 만들고 DIB 출력
     CClientDC desktopDC(NULL);
     CDC memDC;
     memDC.CreateCompatibleDC(&desktopDC);
@@ -320,7 +319,6 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
     bitmap.CreateCompatibleBitmap(&desktopDC, nW, nH);
     CBitmap* pOldBmp = memDC.SelectObject(&bitmap);
 
-    // --- BITMAPINFO 세팅
     BITMAPINFO bmi = {};
     bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bmi.bmiHeader.biWidth = nW;
@@ -333,15 +331,15 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
         memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
     );
 
-    // --- [3] 도형까지 합성
+    // ⑤ [중요] 도형 합성 (반전 옵션 자동 적용)
     pView->DrawAllShapesToDC(&memDC);
 
-    // --- [4] DC에 그려진 비트맵을 24비트 DIB 버퍼로 다시 추출
+    // ⑥ DC에서 다시 DIB 버퍼로 추출
     ::GetDIBits(memDC.GetSafeHdc(), (HBITMAP)bitmap, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS);
 
     memDC.SelectObject(pOldBmp);
 
-    // ===== [5] 24비트 BMP 파일로 저장 =====
+    // ⑦ BMP 파일로 저장
     CFile file;
     if (!file.Open(lpszPathName, CFile::modeCreate | CFile::modeWrite | CFile::typeBinary))
         return FALSE;
@@ -367,41 +365,6 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
     return TRUE;
 }
 
-
-
-
-// --- 좌우 반전 ---
-void CMFCApplicationDoc::OnImageFlipHorizontal()
-{
-    if (!m_pImage) return;
-
-    for (int y = 0; y < m_height; ++y)
-    {
-        for (int x = 0; x < m_width / 2; ++x)
-        {
-            int idxL = (y * m_width + x) * 3;
-            int idxR = (y * m_width + (m_width - 1 - x)) * 3;
-            for (int c = 0; c < 3; ++c)
-                std::swap(m_pImage[idxL + c], m_pImage[idxR + c]);
-        }
-    }
-    UpdateAllViews(NULL);
-}
-
-// --- 상하 반전 ---
-void CMFCApplicationDoc::OnImageFlipVertical()
-{
-    if (!m_pImage) return;
-
-    for (int y = 0; y < m_height / 2; ++y)
-    {
-        int idxT = y * m_width * 3;
-        int idxB = (m_height - 1 - y) * m_width * 3;
-        for (int x = 0; x < m_width * 3; ++x)
-            std::swap(m_pImage[idxT + x], m_pImage[idxB + x]);
-    }
-    UpdateAllViews(NULL);
-}
 
 // --- RGB 채널 추출 ---
 // MFCApplicationDoc.cpp

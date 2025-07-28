@@ -63,7 +63,6 @@ protected: // serialization에서만 만들어집니다.
 
     bool CMFCApplicationView::IsInCanvas(CPoint pt);
 
-
     // 특성입니다.
 public:
     CMFCApplicationDoc* GetDocument() const;
@@ -77,6 +76,7 @@ public:
     void DrawAllShapesToDC(CDC* pDC);
     double m_zoom = 1.0;
 
+    CPoint ViewToImage(const CPoint& pt, double zoom, bool flipH, bool flipV, int imgW, int imgH);
     // 재정의입니다.
 public:
     virtual void OnDraw(CDC* pDC);  // 이 뷰를 그리기 위해 재정의되었습니다.

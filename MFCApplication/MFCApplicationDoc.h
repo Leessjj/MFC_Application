@@ -40,8 +40,6 @@ public:
 	// 작업입니다.
 public:
 	// (3) 기존 작업 함수들은 동일하게 제공, 다만 버퍼 기반 구현!
-	void OnImageFlipHorizontal();
-	void OnImageFlipVertical();
 	void ExtractRGBChannel(char channel);
 
 	// (4) 추가: 버퍼 관리 및 BMP 입출력
@@ -60,6 +58,7 @@ public:
 	void PushUndo();
 	void Undo();
 
+	void FlipBuffer(const BYTE* src, BYTE* dst, int width, int height, bool flipH, bool flipV);
 	// 재정의입니다.
 public:
 	virtual BOOL OnNewDocument();
@@ -82,10 +81,6 @@ public:
 protected:
 	//undo
 	std::vector<std::vector<BYTE>> m_undoStack;
-
-	// 생성된 메시지 맵 함수
-protected:
-	DECLARE_MESSAGE_MAP()
 
 #ifdef SHARED_HANDLERS
 	// 검색 처리기에 대한 검색 콘텐츠를 설정하는 도우미 함수
