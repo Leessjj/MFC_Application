@@ -142,6 +142,9 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	int drawW = int(nW * m_zoom);
 	int drawH = int(nH * m_zoom);
 
+	//이 한줄 없어서 축소할때 이미지에 검은점들이 생겼음
+	pDC->SetStretchBltMode(HALFTONE);
+
 	if (m_bFlipH && m_bFlipV)
 		pDC->StretchBlt(drawW - 1, drawH - 1, -drawW, -drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
 	else if (m_bFlipH)
