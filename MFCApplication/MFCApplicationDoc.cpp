@@ -728,34 +728,47 @@ void CMFCApplicationDoc::DetectStainRegions()
         gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
     }
 
-    // 2. Blur (큰 kernel, 멍보다 크게)
-    std::vector<BYTE> blur(w * h, 0);
-    int ksize = 30; // (멍 지름 30픽셀이면 15, 더 크면 20~25)
-    for (int y = ksize; y < h - ksize; ++y) {
-        for (int x = ksize; x < w - ksize; ++x) {
-            int sum = 0, cnt = 0;
-            for (int dy = -ksize; dy <= ksize; ++dy)
-                for (int dx = -ksize; dx <= ksize; ++dx) {
-                    sum += gray[(y + dy) * w + (x + dx)];
-                    cnt++;
-                }
-            blur[y * w + x] = (BYTE)(sum / cnt);
+    // 2. 적분영상 생성
+    std::vector<long long> integral((w + 1) * (h + 1), 0);
+    for (int y = 1; y <= h; ++y) {
+        for (int x = 1; x <= w; ++x) {
+            integral[y * (w + 1) + x]
+                = gray[(y - 1) * w + (x - 1)]
+                + integral[(y - 1) * (w + 1) + x]
+                + integral[y * (w + 1) + (x - 1)]
+                - integral[(y - 1) * (w + 1) + (x - 1)];
         }
     }
 
-    // 3. Diff(blur-gray)
+    // 3. Blur (적분영상 활용, 매우 빠름)
+    std::vector<BYTE> blur(w * h, 0);
+    int ksize = 90; // (멍보다 크게)
+    for (int y = ksize; y < h - ksize; ++y) {
+        for (int x = ksize; x < w - ksize; ++x) {
+            int x1 = x - ksize, x2 = x + ksize;
+            int y1 = y - ksize, y2 = y + ksize;
+            long long s = integral[(y2 + 1) * (w + 1) + (x2 + 1)]
+                - integral[(y1) * (w + 1) + (x2 + 1)]
+                - integral[(y2 + 1) * (w + 1) + (x1)]
+                + integral[(y1) * (w + 1) + (x1)];
+            int area = (x2 - x1 + 1) * (y2 - y1 + 1);
+            blur[y * w + x] = (BYTE)(s / area);
+        }
+    }
+
+    // 4. Diff(blur-gray)
     std::vector<int> diff(w * h, 0);
     for (int i = 0; i < w * h; ++i)
         diff[i] = int(blur[i]) - int(gray[i]);
 
-    // 4. Threshold & binary mask (흐릿한 멍도 검출)
+    // 5. Threshold & binary mask
     std::vector<BYTE> mask(w * h, 0);
-    int diffThres = 3; // 민감하게: 3~8 추천, 조절 필요
+    int diffThres = 1; // 민감하게: 3~8 추천, 조절 필요
     for (int i = 0; i < w * h; ++i)
         if (diff[i] > diffThres)
             mask[i] = 255;
 
-    // 5. Blob labeling(DFS/BFS, 4-connect)
+    // 6. Blob labeling(DFS/BFS, 4-connect)
     struct Blob {
         int minx, miny, maxx, maxy, npix;
     };
@@ -787,23 +800,22 @@ void CMFCApplicationDoc::DetectStainRegions()
                         }
                     }
                 }
-                // (최소 멍 크기 제한)
-                if (npix > 50) // 픽셀 수 제한(조절)
+                if (npix > 110)
                     blobs.push_back({ minx, miny, maxx, maxy, npix });
             }
         }
     }
 
-    // 6. ROI 저장
+    // 7. ROI 저장
     for (auto& b : blobs) {
         m_stainRegions.push_back({ b.minx, b.miny, b.maxx - b.minx + 1, b.maxy - b.miny + 1 });
     }
 
-    // 7. Output 로그
+    // 8. Output 로그
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm) {
         CString msg;
-        msg.Format(_T("[Diff] Stain(멍) 검출 %d개"), (int)m_stainRegions.size());
+        msg.Format(_T("[Diff+적분영상] Stain(멍) 검출 %d개"), (int)m_stainRegions.size());
         pMainFrm->m_wndOutput.AddLog(msg);
         for (size_t i = 0; i < m_stainRegions.size(); ++i) {
             const auto& reg = m_stainRegions[i];
@@ -812,3 +824,4 @@ void CMFCApplicationDoc::DetectStainRegions()
         }
     }
 }
+
