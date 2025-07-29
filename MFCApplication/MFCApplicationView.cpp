@@ -1360,6 +1360,23 @@ void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
 
 	for (const auto& shape : m_shapes)
 	{
+		if (shape.type == DRAW_FREEHAND && shape.freehandPts.size() >= 2)
+		{
+			CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+			CPen* pOldPen = pDC->SelectObject(&pen);
+
+			// (fillColor는 무시)
+			auto pt = FlipPoint(shape.freehandPts[0]);
+			pDC->MoveTo(pt);
+			for (size_t i = 1; i < shape.freehandPts.size(); ++i)
+			{
+				auto pt2 = FlipPoint(shape.freehandPts[i]);
+				pDC->LineTo(pt2);
+			}
+
+			pDC->SelectObject(pOldPen);
+			continue; // 아래 도형 switch-case로 안 들어감
+		}
 		CPoint pt1 = FlipPoint(shape.start);
 		CPoint pt2 = FlipPoint(shape.end);
 

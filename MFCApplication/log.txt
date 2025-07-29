@@ -2118,4 +2118,18 @@ Stain 3: x=971, y=1532, w=78, h=82
 C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_== Stain Stain 1: x=158, y=90, w=30, h=16
 Stain 2: x=2385, y=1236, w=80, h=84
 Stain 3: x=2591, y=2058, w=26, h=44
-C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(
+C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(C:\education\20250721_Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(C:\education\20250721_=== Defect Defect 1: x=797, y=868, w=6, h=5
+C:\education\20250721_C:\education\20250721_=== Defect Defect 1: x=2266, y=638, w=5, h=3
+Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(C:\education\20250721_== Stain Stain 1: x=1746, y=1079, w=85, h=100
+C:\education\20250721_== Stain Stain 1: x=322, y=370, w=98, h=20
+Stain 2: x=719, y=727, w=48, h=50
+Stain 3: x=971, y=1532, w=78, h=82
+C:\education\20250721_C:\education\20250721_== Stain Stain 1: x=322, y=370, w=98, h=20
+Stain 2: x=719, y=727, w=48, h=50
+Stain 3: x=971, y=1532, w=78, h=82
+C:\education\20250721_== Stain Stain 1: x=607, y=934, w=17, h=20
+C:\education\20250721_== Stain Stain 1: x=2541, y=956, w=166, h=239
+Stain 2: x=3020, y=972, w=16, h=21
+Stain 3: x=2606, y=1189, w=21, h=22
+Stain 4: x=1871, y=2136, w=17, h=18
+C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_
