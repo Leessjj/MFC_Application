@@ -39,7 +39,8 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_COMMAND(ID_DRAW_LINE, &CMFCApplicationView::OnDrawLine)
 	ON_COMMAND(ID_DRAW_RECT, &CMFCApplicationView::OnDrawRect)
 	ON_COMMAND(ID_DRAW_ELLIPSE, &CMFCApplicationView::OnDrawEllipse)
-
+	ON_COMMAND(ID_DRAW_FREE, &CMFCApplicationView::OnDrawFreehand)
+	ON_WM_ERASEBKGND()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONUP()
@@ -107,14 +108,26 @@ BOOL CMFCApplicationView::PreCreateWindow(CREATESTRUCT& cs)
 
 void CMFCApplicationView::OnDraw(CDC* pDC)
 {
+	// 1. 더블버퍼용 DC/Bitmap 준비
 	CRect clientRect;
 	GetClientRect(&clientRect);
-	pDC->FillSolidRect(clientRect, RGB(211, 211, 211));
+	CDC memDC;
+	memDC.CreateCompatibleDC(pDC);
+	CBitmap memBmp;
+	memBmp.CreateCompatibleBitmap(pDC, clientRect.Width(), clientRect.Height());
+	CBitmap* pOldBmp = memDC.SelectObject(&memBmp);
+
+	// 2. 기존 코드의 pDC를 memDC로 "그대로" 바꿔서 사용
+	memDC.FillSolidRect(clientRect, RGB(211, 211, 211));
 
 	CMFCApplicationDoc* pDoc = GetDocument();
-	if (!pDoc) return;
+	if (!pDoc) {
+		// 더블버퍼 복사
+		pDC->BitBlt(0, 0, clientRect.Width(), clientRect.Height(), &memDC, 0, 0, SRCCOPY);
+		memDC.SelectObject(pOldBmp);
+		return;
+	}
 
-	// 1. 이미지/채널 선택
 	BYTE* pBuf = pDoc->m_pImage;
 	int nW = pDoc->m_width, nH = pDoc->m_height;
 	switch (m_selectedChannel) {
@@ -123,9 +136,12 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	case CHANNEL_B: if (pDoc->m_pChannelB) pBuf = pDoc->m_pChannelB; break;
 	default: break;
 	}
-	if (!pBuf || nW == 0 || nH == 0) return;
+	if (!pBuf || nW == 0 || nH == 0) {
+		pDC->BitBlt(0, 0, clientRect.Width(), clientRect.Height(), &memDC, 0, 0, SRCCOPY);
+		memDC.SelectObject(pOldBmp);
+		return;
+	}
 
-	// 2. DIB 버퍼 준비 (stride 포함)
 	BITMAPINFO bmi = {};
 	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth = nW;
@@ -138,36 +154,31 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	for (int y = 0; y < nH; ++y)
 		memcpy(&dibBuf[y * stride], pBuf + y * nW * 3, nW * 3);
 
-	// 3. 임시 DC로 이미지 생성
-	CDC memDC;
-	memDC.CreateCompatibleDC(pDC);
+	CDC imgDC;
+	imgDC.CreateCompatibleDC(&memDC);
 	CBitmap bmp;
-	bmp.CreateCompatibleBitmap(pDC, nW, nH);
-	CBitmap* pOldBmp = memDC.SelectObject(&bmp);
+	bmp.CreateCompatibleBitmap(&memDC, nW, nH);
+	CBitmap* pOldBmpImg = imgDC.SelectObject(&bmp);
 
 	::SetDIBitsToDevice(
-		memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
+		imgDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
 	);
 
-	// 4. Zoom 및 반전 적용해서 화면 출력
 	int drawW = int(nW * m_zoom);
 	int drawH = int(nH * m_zoom);
-
-	//이 한줄 없어서 축소할때 이미지에 검은점들이 생겼음
-	pDC->SetStretchBltMode(HALFTONE);
+	memDC.SetStretchBltMode(HALFTONE);
 
 	if (m_bFlipH && m_bFlipV)
-		pDC->StretchBlt(drawW - 1, drawH - 1, -drawW, -drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		memDC.StretchBlt(drawW - 1, drawH - 1, -drawW, -drawH, &imgDC, 0, 0, nW, nH, SRCCOPY);
 	else if (m_bFlipH)
-		pDC->StretchBlt(drawW - 1, 0, -drawW, drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		memDC.StretchBlt(drawW - 1, 0, -drawW, drawH, &imgDC, 0, 0, nW, nH, SRCCOPY);
 	else if (m_bFlipV)
-		pDC->StretchBlt(0, drawH - 1, drawW, -drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		memDC.StretchBlt(0, drawH - 1, drawW, -drawH, &imgDC, 0, 0, nW, nH, SRCCOPY);
 	else
-		pDC->StretchBlt(0, 0, drawW, drawH, &memDC, 0, 0, nW, nH, SRCCOPY);
+		memDC.StretchBlt(0, 0, drawW, drawH, &imgDC, 0, 0, nW, nH, SRCCOPY);
 
-	memDC.SelectObject(pOldBmp);
+	imgDC.SelectObject(pOldBmpImg);
 
-	// 5. 도형 및 미리보기 등 (좌표에 zoom 곱해서 출력)
 	auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
 		CPoint res = pt;
 		if (m_bFlipH) res.x = nW - 1 - res.x;
@@ -175,134 +186,153 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		return res;
 		};
 
-	// --- 도형 출력 ---
+	// --- 도형 및 미리보기 등 (좌표에 zoom 곱해서 출력)
+	// 기존 코드의 pDC → memDC로 바꿔서 쓴다!
 	for (const auto& shape : m_shapes)
 	{
-		CPoint pt1 = FlipPoint(shape.start);
-		CPoint pt2 = FlipPoint(shape.end);
-		pt1.x = int(pt1.x * m_zoom); pt1.y = int(pt1.y * m_zoom);
-		pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
-
 		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
-		CPen* pOldPen = pDC->SelectObject(&pen);
-		CBrush brush(shape.fillColor);
-		CBrush* pOldBrush = pDC->SelectObject(&brush);
+		CPen* pOldPen = memDC.SelectObject(&pen);
 
-		switch (shape.type)
+		if (shape.type == DRAW_FREEHAND && shape.freehandPts.size() >= 2)
 		{
-		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
-		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
-		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
+			auto pt = FlipPoint(shape.freehandPts[0]);
+			pt.x = int(pt.x * m_zoom); pt.y = int(pt.y * m_zoom);
+			memDC.MoveTo(pt);
+			for (size_t i = 1; i < shape.freehandPts.size(); ++i) {
+				auto pt2 = FlipPoint(shape.freehandPts[i]);
+				pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
+				memDC.LineTo(pt2);
+			}
 		}
-		pDC->SelectObject(pOldPen);
-		pDC->SelectObject(pOldBrush);
+		else
+		{
+			CPoint pt1 = FlipPoint(shape.start);
+			CPoint pt2 = FlipPoint(shape.end);
+			pt1.x = int(pt1.x * m_zoom); pt1.y = int(pt1.y * m_zoom);
+			pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
+
+			CBrush brush(shape.fillColor);
+			CBrush* pOldBrush = memDC.SelectObject(&brush);
+
+			switch (shape.type)
+			{
+			case DRAW_LINE:    memDC.MoveTo(pt1); memDC.LineTo(pt2); break;
+			case DRAW_RECT:    memDC.Rectangle(CRect(pt1, pt2)); break;
+			case DRAW_ELLIPSE: memDC.Ellipse(CRect(pt1, pt2)); break;
+			default: break;
+			}
+			memDC.SelectObject(pOldBrush);
+		}
+		memDC.SelectObject(pOldPen);
 	}
 
-	// --- 미리보기 도형 ---
-	if (m_bDrawing && m_drawType != DRAW_NONE)
+	// --- 미리보기 도형 --- (드래그 중)
+	if (m_bDrawing)
 	{
-		CPoint pt1 = FlipPoint(m_startPoint);
-		CPoint pt2 = FlipPoint(m_endPoint);
-		pt1.x = int(pt1.x * m_zoom); pt1.y = int(pt1.y * m_zoom);
-		pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
-
 		CPen pen(PS_SOLID, m_curBorderWidth, m_curBorderColor);
-		CPen* pOldPen = pDC->SelectObject(&pen);
-		CBrush brush(m_curFillColor);
-		CBrush* pOldBrush = pDC->SelectObject(&brush);
+		CPen* pOldPen = memDC.SelectObject(&pen);
 
-		switch (m_drawType)
+		if (m_drawType == DRAW_FREEHAND && m_tempFreehandPts.size() >= 2)
 		{
-		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
-		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
-		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
+			auto pt = FlipPoint(m_tempFreehandPts[0]);
+			pt.x = int(pt.x * m_zoom); pt.y = int(pt.y * m_zoom);
+			memDC.MoveTo(pt);
+			for (size_t i = 1; i < m_tempFreehandPts.size(); ++i) {
+				auto pt2 = FlipPoint(m_tempFreehandPts[i]);
+				pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
+				memDC.LineTo(pt2);
+			}
 		}
-		pDC->SelectObject(pOldPen);
-		pDC->SelectObject(pOldBrush);
+		else if (m_drawType == DRAW_LINE || m_drawType == DRAW_RECT || m_drawType == DRAW_ELLIPSE)
+		{
+			CPoint pt1 = FlipPoint(m_startPoint);
+			CPoint pt2 = FlipPoint(m_endPoint);
+			pt1.x = int(pt1.x * m_zoom); pt1.y = int(pt1.y * m_zoom);
+			pt2.x = int(pt2.x * m_zoom); pt2.y = int(pt2.y * m_zoom);
+
+			CBrush brush(m_curFillColor);
+			CBrush* pOldBrush = memDC.SelectObject(&brush);
+
+			switch (m_drawType)
+			{
+			case DRAW_LINE:    memDC.MoveTo(pt1); memDC.LineTo(pt2); break;
+			case DRAW_RECT:    memDC.Rectangle(CRect(pt1, pt2)); break;
+			case DRAW_ELLIPSE: memDC.Ellipse(CRect(pt1, pt2)); break;
+			}
+			memDC.SelectObject(pOldBrush);
+		}
+		memDC.SelectObject(pOldPen);
 	}
-	// --- 리사이즈 핸들 ---
+
+	// 이하 핸들, 결함박스 등도 전부 pDC → memDC로 바꿔서 사용
+
 	int canvasW = int(pDoc->m_width * m_zoom);
 	int canvasH = int(pDoc->m_height * m_zoom);
 	const int HANDLE_SIZE = 10; // 고정
 
-	// 오른쪽 하단 모서리 (코너)
-	pDC->FillSolidRect(canvasW - HANDLE_SIZE / 2, canvasH - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
-	// 오른쪽(수직 핸들)
-	pDC->FillSolidRect(canvasW - HANDLE_SIZE, canvasH - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
-	// 아래쪽(수평 핸들)
-	pDC->FillSolidRect(canvasW - HANDLE_SIZE / 2, canvasH - HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
+	memDC.FillSolidRect(canvasW - HANDLE_SIZE / 2, canvasH - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
+	memDC.FillSolidRect(canvasW - HANDLE_SIZE, canvasH - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
+	memDC.FillSolidRect(canvasW - HANDLE_SIZE / 2, canvasH - HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
 
-	// --- 리사이즈 미리보기(점선 박스) ---
 	if (m_bResizing) {
 		CPen pen(PS_DOT, 1, RGB(0, 0, 255));
-		CPen* pOldPen = pDC->SelectObject(&pen);
-		pDC->Rectangle(0, 0, int(m_resizePreviewW * m_zoom), int(m_resizePreviewH * m_zoom));
-		pDC->SelectObject(pOldPen);
+		CPen* pOldPen = memDC.SelectObject(&pen);
+		memDC.Rectangle(0, 0, int(m_resizePreviewW * m_zoom), int(m_resizePreviewH * m_zoom));
+		memDC.SelectObject(pOldPen);
 	}
 
-	// --- (옵션) 화면 상단에 확대/축소 배율 표시 ---
-	/*CString strZoom;
-	strZoom.Format(_T("%.0f%%"), m_zoom * 100.0);
-	pDC->SetBkMode(TRANSPARENT);
-	pDC->TextOutW(10, 10, strZoom);*/
-	// --- (아래 부분을 OnDraw 마지막에 추가!) ---
-
-	// --- 결함 박스 빨간 사각형으로 그림 ---
 	if (!pDoc->m_defectRegions.empty()) {
 		CPen defectPen(PS_SOLID, 2, RGB(255, 0, 0));
-		CPen* pOldPen = pDC->SelectObject(&defectPen);
+		CPen* pOldPen = memDC.SelectObject(&defectPen);
 
-		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+		CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
 		for (const auto& reg : pDoc->m_defectRegions)
 		{
 			int x1 = int(reg.x * m_zoom), y1 = int(reg.y * m_zoom);
 			int x2 = int((reg.x + reg.w) * m_zoom), y2 = int((reg.y + reg.h) * m_zoom);
-			pDC->Rectangle(x1, y1, x2, y2);
+			memDC.Rectangle(x1, y1, x2, y2);
 		}
-		pDC->SelectObject(pOldPen);
+		memDC.SelectObject(pOldPen);
 	}
 
-	// 노이즈 검사 후만 PASS/FAIL 표시 (m_stddev > 0)
 	if (pDoc->m_stddev > 0) {
-		bool isNoiseOK = (pDoc->m_stddev < 15.0); // 기준 조정 가능
+		bool isNoiseOK = (pDoc->m_stddev < 15.0);
 
 		CString resultText = isNoiseOK ? _T("PASS") : _T("FAIL");
 		COLORREF resultColor = isNoiseOK ? RGB(0, 180, 0) : RGB(220, 0, 0);
 
-		// 큰 폰트로 PASS/FAIL
 		CFont bigFont;
 		bigFont.CreatePointFont(240, _T("맑은 고딕"));
-		CFont* pOldFont = pDC->SelectObject(&bigFont);
+		CFont* pOldFont = memDC.SelectObject(&bigFont);
 
-		// 위치: 좌상단 (30,30)~(300,120), 필요시 조정
 		CRect resultRect(30, 30, 300, 120);
-		pDC->SetTextColor(resultColor);
-		pDC->SetBkMode(TRANSPARENT);
-		pDC->DrawText(resultText, &resultRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+		memDC.SetTextColor(resultColor);
+		memDC.SetBkMode(TRANSPARENT);
+		memDC.DrawText(resultText, &resultRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-		pDC->SelectObject(pOldFont);
-
+		memDC.SelectObject(pOldFont);
 	}
 	if (!pDoc->m_stainRegions.empty()) {
 		CPen stainPen(PS_SOLID, 1, RGB(255, 0, 0));
-		CPen* pOldPen = pDC->SelectObject(&stainPen);
+		CPen* pOldPen = memDC.SelectObject(&stainPen);
 
-		// ★ Brush를 투명(NULL_BRUSH)으로 설정!
-		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
-		int expand = int(50 * m_zoom); // 20픽셀 확장
+		CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
+		int expand = int(50 * m_zoom);
 
 		for (const auto& reg : pDoc->m_stainRegions) {
 			int x1 = int(reg.x * m_zoom) - expand;
 			int y1 = int(reg.y * m_zoom) - expand;
 			int x2 = int((reg.x + reg.w) * m_zoom) + expand;
 			int y2 = int((reg.y + reg.h) * m_zoom) + expand;
-			pDC->Rectangle(x1, y1, x2, y2);
+			memDC.Rectangle(x1, y1, x2, y2);
 		}
-
-		// 원래 브러시, 펜으로 복원
-		pDC->SelectObject(pOldBrush);
-		pDC->SelectObject(pOldPen);
+		memDC.SelectObject(pOldBrush);
+		memDC.SelectObject(pOldPen);
 	}
+
+	// --- 실제화면에 복사!
+	pDC->BitBlt(0, 0, clientRect.Width(), clientRect.Height(), &memDC, 0, 0, SRCCOPY);
+	memDC.SelectObject(pOldBmp);
 }
 
 // CMFCApplicationView 인쇄
@@ -409,6 +439,13 @@ void CMFCApplicationView::OnDrawEllipse()
 		pMainFrm->m_wndOutput.AddLog(_T("원 선택"));
 	m_drawType = DRAW_ELLIPSE;
 }
+void CMFCApplicationView::OnDrawFreehand()
+{
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("펜 선택"));
+	m_drawType = DRAW_FREEHAND;
+}
 
 CPoint CMFCApplicationView::ViewToImage(const CPoint& pt, double zoom, bool flipH, bool flipV, int imgW, int imgH)
 {
@@ -435,6 +472,7 @@ void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 			return;
 		}
 	}
+
 	// === View 좌표 → 이미지 좌표 변환 ===
 	CMFCApplicationDoc* pDoc = GetDocument();
 	CPoint imgPt = ViewToImage(
@@ -445,6 +483,18 @@ void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 	// === 반드시 이미지 좌표로 캔버스 내부 판정 ===
 	if (!IsInCanvas(imgPt)) return;
 
+	// ---- 프리핸드 모드 ---
+	if (m_drawType == DRAW_FREEHAND)
+	{
+		m_bDrawing = TRUE;
+		m_tempFreehandPts.clear();
+		m_startPoint = imgPt;
+		m_tempFreehandPts.push_back(imgPt);
+		SetCapture();
+		return;
+	}
+
+	// ---- 사각형/직선/타원 등 ---
 	if (m_drawType != DRAW_NONE)
 	{
 		m_bDrawing = TRUE;
@@ -453,6 +503,7 @@ void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 		SetCapture();
 	}
 }
+
 
 
 void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
@@ -502,9 +553,21 @@ void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
 		m_endPoint = imgPt;
 		Invalidate(TRUE);
 	}
+	if (m_bDrawing && m_drawType == DRAW_FREEHAND)
+	{
+		// 드래그 도중 좌표 계속 추가 (이미지 범위 clip)
+		CMFCApplicationDoc* pDoc = GetDocument();
+		CPoint imgPt = ViewToImage(
+			point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+			pDoc->m_width, pDoc->m_height
+		);
+		imgPt.x = max(0, min(imgPt.x, pDoc->m_width - 1));
+		imgPt.y = max(0, min(imgPt.y, pDoc->m_height - 1));
+		m_tempFreehandPts.push_back(imgPt);
+		Invalidate(FALSE);
+	}
+
 }
-
-
 
 void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 {
@@ -520,7 +583,30 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 		return;
 	}
 
-	if (m_bDrawing)
+	if (m_bDrawing && m_drawType == DRAW_FREEHAND)
+	{
+		m_bDrawing = FALSE;
+		ReleaseCapture();
+
+		if (m_tempFreehandPts.size() >= 2) {
+			DrawShape shape;
+			shape.type = DRAW_FREEHAND;
+			shape.freehandPts = m_tempFreehandPts;
+			shape.borderColor = m_curBorderColor;
+			shape.borderWidth = m_curBorderWidth;
+			shape.fillColor = RGB(255, 255, 255); // 프리핸드는 fill 없음
+
+			// start/end 좌표로도 기록 (첫, 끝점)
+			shape.start = m_tempFreehandPts.front();
+			shape.end = m_tempFreehandPts.back();
+
+			m_shapes.push_back(shape);
+		}
+		m_tempFreehandPts.clear();
+		Invalidate(FALSE);
+		return; // 프리핸드 처리 후 종료!
+	}
+	else if (m_bDrawing)
 	{
 		// === 좌표 변환 적용 ===
 		CMFCApplicationDoc* pDoc = GetDocument();
@@ -547,6 +633,11 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 		Invalidate(FALSE);
 	}
 }
+BOOL CMFCApplicationView::OnEraseBkgnd(CDC* pDC)
+{
+	return TRUE; // 배경 지우기 안함
+}
+
 
 void CMFCApplicationView::OnViewSaveasimage()
 {

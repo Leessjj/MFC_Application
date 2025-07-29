@@ -20,7 +20,7 @@ protected: // serialization에서만 만들어집니다.
 
 
     // 그림판 도형 타입
-    enum DrawType { DRAW_NONE, DRAW_LINE, DRAW_RECT, DRAW_ELLIPSE };
+    enum DrawType { DRAW_NONE, DRAW_LINE, DRAW_RECT, DRAW_ELLIPSE, DRAW_FREEHAND};
 
     //도형 정보 저장용 구조체
     struct DrawShape {
@@ -30,6 +30,7 @@ protected: // serialization에서만 만들어집니다.
         COLORREF fillColor = RGB(255, 255, 255);    // 채우기 색 
         COLORREF borderColor = RGB(0, 0, 0);        // 외곽선 색 
         int borderWidth = 1;                        // 외곽선 두께
+        std::vector<CPoint> freehandPts;
     };
 
     COLORREF m_curFillColor = RGB(255, 255, 255);
@@ -62,6 +63,8 @@ protected: // serialization에서만 만들어집니다.
     ResizeHitTest HitTestResizeHandle(CPoint pt);
 
     bool CMFCApplicationView::IsInCanvas(CPoint pt);
+
+    std::vector<CPoint> m_tempFreehandPts;
 
     // 특성입니다.
 public:
@@ -104,6 +107,7 @@ protected:
     afx_msg void OnFilePrintPreview();
     afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
     afx_msg void OnContextMenu(CWnd* pWnd, CPoint point);
+    afx_msg BOOL OnEraseBkgnd(CDC* pDC);
     DECLARE_MESSAGE_MAP()
 public:
     afx_msg void OnViewChannelR();
@@ -114,6 +118,7 @@ public:
     afx_msg void OnDrawLine();
     afx_msg void OnDrawRect();
     afx_msg void OnDrawEllipse();
+    afx_msg void OnDrawFreehand();
 
     afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
