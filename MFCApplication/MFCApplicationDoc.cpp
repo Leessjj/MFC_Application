@@ -46,11 +46,48 @@ BOOL CMFCApplicationDoc::OnNewDocument()
     if (!CDocument::OnNewDocument())
         return FALSE;
 
-    // TODO: 여기에 재초기화 코드를 추가합니다.
-    // SDI 문서는 이 문서를 다시 사용합니다.
+    // --- 1. 기존 데이터 완전 해제 ---
+    FreeImage();  // 이미지, 채널 버퍼 모두 해제
+
+    // --- 2. 결함, 스테인, 노이즈 등 분석 관련 값 초기화 ---
+    m_defectRegions.clear();
+    m_stainRegions.clear();
+    m_stddev = 0;
+
+    // --- 3. 도화지(이미지 버퍼) 새로 생성 (흰색) ---
+    int defaultW = 1200;
+    int defaultH = 800;
+    AllocateImage(defaultW, defaultH, 3);
+    m_imgW = defaultW;
+    m_imgH = defaultH;
+    if (m_pImage)
+        memset(m_pImage, 255, defaultW * defaultH * 3);
+
+    // --- 4. 모든 뷰의 상태(도형, 임시변수, 채널, 반전 등)도 완전히 리셋 ---
+    POSITION pos = GetFirstViewPosition();
+    while (pos != NULL) {
+        CView* pView = GetNextView(pos);
+        CMFCApplicationView* pMyView = dynamic_cast<CMFCApplicationView*>(pView);
+        if (pMyView) {
+            pMyView->m_shapes.clear(); // 모든 도형 삭제
+            pMyView->m_drawType = CMFCApplicationView::DRAW_NONE;
+            pMyView->m_bDrawing = FALSE;
+            pMyView->m_tempFreehandPts.clear();
+            pMyView->m_selectedChannel = CMFCApplicationView::CHANNEL_ORG;
+            pMyView->m_bFlipH = false;
+            pMyView->m_bFlipV = false;
+            pMyView->m_bResizing = FALSE;
+            // 추가로 초기화하고 싶은 멤버 있으면 여기에!
+        }
+    }
+
+    // --- 5. 뷰 갱신 ---
+    UpdateAllViews(NULL);
 
     return TRUE;
 }
+
+
 
 
 

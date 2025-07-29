@@ -908,42 +908,6 @@ void CMFCApplicationView::OnViewSaveasimage()
 	}
 }
 
-void FlipCImageHorizontal(CImage& img)
-{
-
-	int width = img.GetWidth();
-	int height = img.GetHeight();
-
-	for (int y = 0; y < height; ++y)
-	{
-		for (int x = 0; x < width / 2; ++x)
-		{
-			COLORREF left = img.GetPixel(x, y);
-			COLORREF right = img.GetPixel(width - 1 - x, y);
-			img.SetPixel(x, y, right);
-			img.SetPixel(width - 1 - x, y, left);
-		}
-	}
-}
-
-void FlipCImageVertical(CImage& img)
-{
-	if (img.IsNull()) return;
-	int width = img.GetWidth();
-	int height = img.GetHeight();
-
-	for (int y = 0; y < height / 2; ++y)
-	{
-		for (int x = 0; x < width; ++x)
-		{
-			COLORREF top = img.GetPixel(x, y);
-			COLORREF bottom = img.GetPixel(x, height - 1 - y);
-			img.SetPixel(x, y, bottom);
-			img.SetPixel(x, height - 1 - y, top);
-		}
-	}
-}
-
 void CMFCApplicationView::OnBnClickedBtnFillColor()
 {
 	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
