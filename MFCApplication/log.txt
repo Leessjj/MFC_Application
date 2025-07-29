@@ -2034,4 +2034,84 @@ C:\education\20250721_== Noise StdDev: 5.94 - PASS
 C:\education\20250721_C:\education\20250721_Undo(C:\education\20250721_C:\education\20250721_Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(C:\education\20250721_Undo(Undo(Undo(Undo(Undo(Undo(Undo(Undo(C:\education\20250721_Undo(Undo(C:\education\20250721_== Noise StdDev: 30.53 - FAIL
 C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(== Noise StdDev: 72.47 - FAIL
 == Noise StdDev: 93.65 - FAIL
-Undo(
+Undo(C:\education\20250721_== Noise StdDev: 30.53 - FAIL
+C:\education\20250721_== Stain Stain 1: x=1746, y=1079, w=85, h=100
+C:\education\20250721_== Stain Stain 1: x=158, y=90, w=30, h=16
+Stain 2: x=2385, y=1236, w=80, h=84
+Stain 3: x=2591, y=2058, w=26, h=44
+C:\education\20250721_C:\education\20250721_=== Defect Defect 1: x=797, y=868, w=6, h=5
+C:\education\20250721_== Stain Stain 1: x=101, y=91, w=24, h=21
+Stain 2: x=1467, y=91, w=26, h=13
+Stain 3: x=2150, y=97, w=16, h=22
+Stain 4: x=3015, y=99, w=144, h=35
+Stain 5: x=660, y=105, w=154, h=52
+Stain 6: x=2338, y=120, w=28, h=20
+Stain 7: x=1859, y=206, w=24, h=14
+Stain 8: x=734, y=291, w=18, h=30
+Stain 9: x=2408, y=406, w=28, h=21
+Stain 10: x=225, y=492, w=16, h=22
+Stain 11: x=2373, y=654, w=16, h=28
+Stain 12: x=2655, y=666, w=19, h=17
+Stain 13: x=2208, y=726, w=19, h=23
+Stain 14: x=497, y=734, w=19, h=22
+Stain 15: x=2776, y=817, w=16, h=21
+Stain 16: x=3067, y=1167, w=28, h=38
+Stain 17: x=2672, y=1183, w=17, h=22
+Stain 18: x=1271, y=2193, w=26, h=17
+Stain 19: x=1970, y=2208, w=27, h=18
+Stain 20: x=2880, y=2216, w=20, h=24
+Stain 21: x=234, y=2242, w=24, h=24
+Undo(Undo(C:\education\20250721_== Stain Stain 1: x=322, y=370, w=98, h=20
+Stain 2: x=719, y=727, w=48, h=50
+Stain 3: x=971, y=1532, w=78, h=82
+C:\education\20250721_== Stain C:\education\20250721_== Stain Stain 1: x=2541, y=956, w=166, h=239
+Stain 2: x=3020, y=972, w=16, h=21
+Stain 3: x=2606, y=1189, w=21, h=22
+Stain 4: x=1871, y=2136, w=17, h=18
+C:\education\20250721_C:\education\20250721_Undo(== Stain Stain 1: x=327, y=104, w=18, h=19
+Stain 2: x=1464, y=212, w=14, h=19
+Stain 3: x=118, y=268, w=25, h=17
+Stain 4: x=2710, y=290, w=20, h=16
+Stain 5: x=1871, y=430, w=14, h=19
+Stain 6: x=2791, y=467, w=36, h=95
+Stain 7: x=956, y=521, w=19, h=25
+Stain 8: x=2011, y=859, w=23, h=22
+Stain 9: x=2541, y=955, w=167, h=256
+Stain 10: x=3020, y=972, w=16, h=21
+Stain 11: x=2004, y=997, w=20, h=24
+Stain 12: x=393, y=1055, w=53, h=62
+Stain 13: x=1144, y=1279, w=18, h=20
+Stain 14: x=2750, y=1362, w=51, h=107
+Stain 15: x=189, y=1372, w=18, h=28
+Stain 16: x=2677, y=1677, w=20, h=30
+Stain 17: x=2099, y=1890, w=22, h=18
+Stain 18: x=3088, y=1947, w=21, h=25
+Stain 19: x=353, y=2039, w=22, h=24
+Stain 20: x=1776, y=2133, w=136, h=68
+Stain 21: x=688, y=2216, w=19, h=30
+Stain 22: x=918, y=2297, w=22, h=20
+Undo(Undo(Undo(C:\education\20250721_C:\education\20250721_== Stain Stain 1: x=149, y=90, w=39, h=19
+Stain 2: x=659, y=103, w=23, h=18
+Stain 3: x=547, y=195, w=19, h=21
+Stain 4: x=95, y=207, w=17, h=16
+Stain 5: x=2657, y=376, w=21, h=17
+Stain 6: x=364, y=398, w=27, h=12
+Stain 7: x=103, y=580, w=32, h=81
+Stain 8: x=746, y=1055, w=22, h=22
+Stain 9: x=2385, y=1236, w=75, h=84
+Stain 10: x=723, y=1254, w=29, h=105
+Stain 11: x=1960, y=1276, w=18, h=16
+Stain 12: x=431, y=1801, w=71, h=80
+Stain 13: x=2873, y=1904, w=20, h=13
+Stain 14: x=92, y=1922, w=15, h=23
+Stain 15: x=2645, y=1927, w=25, h=21
+Stain 16: x=2591, y=2045, w=59, h=81
+Stain 17: x=2765, y=2070, w=17, h=19
+Stain 18: x=252, y=2097, w=19, h=19
+Stain 19: x=2679, y=2188, w=20, h=19
+Stain 20: x=299, y=2205, w=25, h=32
+Stain 21: x=3121, y=2271, w=23, h=14
+C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(Undo(Undo(C:\education\20250721_Undo(Undo(Undo(Undo(C:\education\20250721_C:\education\20250721_== Noise StdDev: 29.60 - FAIL
+C:\education\20250721_== Stain Stain 1: x=322, y=370, w=98, h=20
+Stain 2: x=719, y=727, w=48, h=50
+Stain 3: x=971, y=1532, w=78, h=82

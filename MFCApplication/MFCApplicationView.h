@@ -141,6 +141,16 @@ public:
 
     afx_msg LRESULT OnSetFillColor(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnSetBorderColor(WPARAM wParam, LPARAM lParam);
+    //필터
+    afx_msg LRESULT OnGrayscale(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnBlur(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnSobel(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnSepia(WPARAM wParam, LPARAM lParam);
+
+    //검사
+    afx_msg LRESULT OnDefects(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnNoise(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnStain(WPARAM wParam, LPARAM lParam);
 
     afx_msg void OnFileSaveAs();
     afx_msg void OnFilterGrayscale();

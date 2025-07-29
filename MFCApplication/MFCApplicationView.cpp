@@ -63,6 +63,16 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_MESSAGE(WM_USER + 112, &CMFCApplicationView::OnSetFillColor)
 	ON_MESSAGE(WM_USER + 200, &CMFCApplicationView::OnSetBorderColor)
 
+	//필터
+	ON_MESSAGE(WM_USER + 201, &CMFCApplicationView::OnGrayscale)
+	ON_MESSAGE(WM_USER + 202, &CMFCApplicationView::OnBlur)
+	ON_MESSAGE(WM_USER + 203, &CMFCApplicationView::OnSobel)
+	ON_MESSAGE(WM_USER + 204, &CMFCApplicationView::OnSepia)
+
+	//검사
+	ON_MESSAGE(WM_USER + 205, &CMFCApplicationView::OnDefects)
+	ON_MESSAGE(WM_USER + 206, &CMFCApplicationView::OnNoise)
+	ON_MESSAGE(WM_USER + 207, &CMFCApplicationView::OnStain)
 
 	ON_COMMAND(ID_FILE_SAVE_AS, &CMFCApplicationView::OnFileSaveAs)
 	ON_COMMAND(ID_FILTER_GRAYSCALE, &CMFCApplicationView::OnFilterGrayscale)
@@ -742,8 +752,27 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 					COLORREF color = RGB(r, g, b);
 					::PostMessage(pView->m_hWnd, WM_USER + 200, (WPARAM)color, 0); // 선 색상 변경
 				}
-
-
+				if (strCmd.Left(10) == _T("GRAYSCALE")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 201, 0, 0);
+				}
+				if (strCmd.Left(4) == _T("BLUR")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 202, 0, 0);
+				}
+				if (strCmd.Left(5) == _T("Sobel")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 203, 0, 0);
+				}
+				if (strCmd.Left(5) == _T("Sepia")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 204, 0, 0);
+				}
+				if (strCmd.Left(7) == _T("Defects")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 205, 0, 0);
+				}
+				if (strCmd.Left(5) == _T("Noise")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 206, 0, 0);
+				}
+				if (strCmd.Left(5) == _T("Stain")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 207, 0, 0);
+				}
 			}
 			clientSocket.Close();
 		}
@@ -888,6 +917,41 @@ LRESULT CMFCApplicationView::OnSetBorderColor(WPARAM wParam, LPARAM)
 	return 0;
 }
 
+LRESULT CMFCApplicationView::OnGrayscale(WPARAM wParam, LPARAM)
+{
+	OnFilterGrayscale();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnBlur(WPARAM wParam, LPARAM)
+{
+	OnFilterGaussianblur();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnSobel(WPARAM wParam, LPARAM)
+{
+	OnFilterSobeledge();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnSepia(WPARAM wParam, LPARAM)
+{
+	OnFilterSepia();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnDefects(WPARAM wParam, LPARAM)
+{
+	OnDetectDefects();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnNoise(WPARAM wParam, LPARAM)
+{
+	OnCheckNoise();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnStain(WPARAM wParam, LPARAM)
+{
+	OnDetectStain();
+	return 0;
+}
 
 void CMFCApplicationView::OnInitialUpdate()
 {
