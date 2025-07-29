@@ -79,8 +79,7 @@ int COutputWnd::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	// === 로그 파일 열기 ===
 	CString logFilePath = _T("log.txt");
-	if (!m_logFile.Open(logFilePath,
-		CFile::modeCreate | CFile::modeNoTruncate | CFile::modeWrite | CFile::typeText))
+	if (!m_logFile.Open(logFilePath, CFile::modeCreate | CFile::modeWrite | CFile::typeText))
 	{
 		AfxMessageBox(_T("로그 파일을 열 수 없습니다."));
 	}
@@ -215,14 +214,17 @@ void COutputList::OnViewOutput()
 
 void COutputWnd::AddLog(const CString& msg)
 {
-	m_wndOutputDebug.AddString(msg); // 디버그 탭에 추가
+	m_wndOutputDebug.AddString(msg);
 	AdjustHorzScroll(m_wndOutputDebug);
 
-	// 파일에 로그 저장
 	if (m_logFile.m_hFile != CFile::hFileNull) {
 		CString logWithNewline = msg + _T("\r\n");
-		m_logFile.WriteString(logWithNewline);
+		// 유니코드(UTF-16) → UTF-8로 변환
+		int utf8Len = WideCharToMultiByte(CP_UTF8, 0, logWithNewline, -1, NULL, 0, NULL, NULL);
+		char* utf8Buf = new char[utf8Len];
+		WideCharToMultiByte(CP_UTF8, 0, logWithNewline, -1, utf8Buf, utf8Len, NULL, NULL);
+		m_logFile.Write(utf8Buf, utf8Len - 1); // -1: 널문자 제외
+		delete[] utf8Buf;
+		m_logFile.Flush();
 	}
 }
-
-
