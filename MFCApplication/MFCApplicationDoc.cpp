@@ -169,12 +169,6 @@ BOOL CMFCApplicationDoc::LoadBMP(LPCTSTR lpszPathName)
     BITMAPINFOHEADER info;
     file.Read(&header, sizeof(header));
     file.Read(&info, sizeof(info));
-    if (header.bfType != 0x4D42 || info.biBitCount != 24)
-    {
-        file.Close();
-        AfxMessageBox(_T("24bit BMP만 지원합니다."));
-        return FALSE;
-    }
 
     AllocateImage(info.biWidth, abs(info.biHeight), 3);
 

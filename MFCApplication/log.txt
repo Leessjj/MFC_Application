@@ -2132,4 +2132,11 @@ C:\education\20250721_== Stain Stain 1: x=2541, y=956, w=166, h=239
 Stain 2: x=3020, y=972, w=16, h=21
 Stain 3: x=2606, y=1189, w=21, h=22
 Stain 4: x=1871, y=2136, w=17, h=18
-C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_
+C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_C:\education\20250721_Undo(Undo(C:\education\20250721_C:\education\20250721_== Stain Stain 1: x=2541, y=956, w=166, h=239
+Stain 2: x=3020, y=972, w=16, h=21
+Stain 3: x=2606, y=1189, w=21, h=22
+Stain 4: x=1871, y=2136, w=17, h=18
+C:\education\20250721_C:\education\20250721_Undo(Undo(Undo(Undo(Undo(C:\education\20250721_C:\Users\USER\Pictures\=== Defect Defect 1: x=2, y=416, w=428, h=7
+C:\Users\USER\Pictures\Undo(== Stain Stain 1: x=90, y=90, w=98, h=16
+Stain 2: x=90, y=205, w=98, h=76
+Undo(Undo(C:\Users\USER\Pictures\Screenshots\C:\Users\USER\Pictures\C:\Users\USER\Pictures\=== Defect 

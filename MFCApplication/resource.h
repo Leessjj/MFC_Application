@@ -130,13 +130,18 @@
 #define ID_32813                        32813
 #define ID_32814                        32814
 #define ID_DRAW_FREE                    32815
+#define ID_BUTTON32824                  32824
+#define ID_BUTTON32830                  32830
+#define ID_BUTTON32831                  32831
+#define ID_BUTTON32833                  32833
+#define ID_BUTTON32838                  32838
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        310
-#define _APS_NEXT_COMMAND_VALUE         32816
+#define _APS_NEXT_COMMAND_VALUE         32839
 #define _APS_NEXT_CONTROL_VALUE         1000
 #define _APS_NEXT_SYMED_VALUE           310
 #endif
