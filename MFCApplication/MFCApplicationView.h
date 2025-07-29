@@ -140,6 +140,8 @@ public:
     afx_msg LRESULT OnDrawLineFromNet(WPARAM, LPARAM);
     afx_msg LRESULT OnDrawRectFromNet(WPARAM, LPARAM);
     afx_msg LRESULT OnDrawEllipseFromNet(WPARAM, LPARAM);
+    afx_msg LRESULT OnDrawFreeFromNet(WPARAM, LPARAM);
+    
     afx_msg LRESULT OnSaveAllFromNet(WPARAM, LPARAM);
     afx_msg void OnBnClickedBtnFillColor();
     afx_msg void OnBnClickedBtnBorderColor();

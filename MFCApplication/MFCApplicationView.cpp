@@ -53,9 +53,12 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_MESSAGE(WM_USER + 105, &CMFCApplicationView::OnChannelRFromNet)
 	ON_MESSAGE(WM_USER + 106, &CMFCApplicationView::OnChannelGFromNet)
 	ON_MESSAGE(WM_USER + 107, &CMFCApplicationView::OnChannelBFromNet)
+
 	ON_MESSAGE(WM_USER + 108, &CMFCApplicationView::OnDrawLineFromNet)
 	ON_MESSAGE(WM_USER + 109, &CMFCApplicationView::OnDrawRectFromNet)
 	ON_MESSAGE(WM_USER + 110, &CMFCApplicationView::OnDrawEllipseFromNet)
+	ON_MESSAGE(WM_USER + 208, &CMFCApplicationView::OnDrawFreeFromNet)
+
 	ON_MESSAGE(WM_USER + 111, &CMFCApplicationView::OnSaveAllFromNet)
 
 	//도형,선 색상
@@ -864,6 +867,9 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 				if (strCmd.Left(5) == _T("Stain")) {
 					::PostMessage(pView->m_hWnd, WM_USER + 207, 0, 0);
 				}
+				if (strCmd.Left(9) == _T("DRAW_FREE")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 208, 0, 0);
+				}
 			}
 			clientSocket.Close();
 		}
@@ -963,6 +969,16 @@ LRESULT CMFCApplicationView::OnDrawEllipseFromNet(WPARAM, LPARAM)
 		pMainFrm->m_wndOutput.AddLog(_T("원 선택"));
 
 	m_drawType = DRAW_ELLIPSE;
+	Invalidate();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnDrawFreeFromNet(WPARAM, LPARAM)
+{
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("펜 선택"));
+
+	m_drawType = DRAW_FREEHAND;
 	Invalidate();
 	return 0;
 }
