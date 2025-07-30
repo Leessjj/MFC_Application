@@ -899,7 +899,7 @@ void CMFCApplicationDoc::DetectStainRegions()
         std::vector<std::pair<int, int>> centers;
     };
     std::vector<StainGroup> groups;
-    int mergeDist = 100;
+    int mergeDist = 150;
 
     for (auto& b : blobs) {
         int cx = (b.minx + b.maxx) / 2;

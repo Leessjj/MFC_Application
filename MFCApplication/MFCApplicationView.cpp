@@ -13,6 +13,7 @@
 #include "MFCApplicationDoc.h"
 #include "MFCApplicationView.h"
 #include "MainFrm.h"
+#include "CPenWidthDlg.h"
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -89,6 +90,13 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_COMMAND(ID_DETECT_DEFECTS, &CMFCApplicationView::OnDetectDefects)
 	ON_COMMAND(ID_CHECK_NOISE, &CMFCApplicationView::OnCheckNoise)
 	ON_COMMAND(ID_DETECT_STAIN, &CMFCApplicationView::OnDetectStain)
+	ON_COMMAND(ID_PEN_STYLE_SOLID, &CMFCApplicationView::OnPenStyleSolid)
+	ON_COMMAND(ID_PEN_STYLE_DASH, &CMFCApplicationView::OnPenStyleDash)
+	ON_COMMAND(ID_PEN_STYLE_DOT, &CMFCApplicationView::OnPenStyleDot)
+	ON_COMMAND(ID_PEN_STYLE_DASHDOT, &CMFCApplicationView::OnPenStyleDashdot)
+
+	ON_COMMAND(ID_PEN_WIDTH_SETTING, &CMFCApplicationView::OnPenWidthSetting)
+
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -190,11 +198,23 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		};
 
 	// --- 도형 및 미리보기 등 (좌표에 zoom 곱해서 출력)
-	// 기존 코드의 pDC → memDC로 바꿔서 쓴다!
+	//GDI의 기본 CPen은 폭이 1일 때만 대시(점선, 대시점 등)가 제대로 적용되는 현상
 	for (const auto& shape : m_shapes)
 	{
-		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+		CPen pen;
+		if (shape.borderWidth > 1 && shape.penStyle != PS_SOLID) {
+			LOGBRUSH lb{};
+			lb.lbStyle = BS_SOLID;
+			lb.lbColor = shape.borderColor;
+			// PS_GEOMETRIC | 원하는 스타일 | 마감옵션
+			DWORD geomStyle = PS_GEOMETRIC | PS_ENDCAP_ROUND | PS_JOIN_ROUND | (shape.penStyle & PS_STYLE_MASK);
+			pen.Attach(ExtCreatePen(geomStyle, shape.borderWidth, &lb, 0, nullptr));
+		}
+		else {
+			pen.CreatePen(shape.penStyle, shape.borderWidth, shape.borderColor);
+		}
 		CPen* pOldPen = memDC.SelectObject(&pen);
+
 
 		if (shape.type == DRAW_FREEHAND && shape.freehandPts.size() >= 2)
 		{
@@ -232,8 +252,20 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	// --- 미리보기 도형 --- (드래그 중)
 	if (m_bDrawing)
 	{
-		CPen pen(PS_SOLID, m_curBorderWidth, m_curBorderColor);
+		//GDI의 기본 CPen은 폭이 1일 때만 대시(점선, 대시점 등)가 제대로 적용되는 현상
+		CPen pen;
+		if (m_curBorderWidth > 1 && m_curPenStyle != PS_SOLID) {
+			LOGBRUSH lb{};
+			lb.lbStyle = BS_SOLID;
+			lb.lbColor = m_curBorderColor;
+			DWORD geomStyle = PS_GEOMETRIC | PS_ENDCAP_ROUND | PS_JOIN_ROUND | (m_curPenStyle & PS_STYLE_MASK);
+			pen.Attach(ExtCreatePen(geomStyle, m_curBorderWidth, &lb, 0, nullptr));
+		}
+		else {
+			pen.CreatePen(m_curPenStyle, m_curBorderWidth, m_curBorderColor);
+		}
 		CPen* pOldPen = memDC.SelectObject(&pen);
+
 
 		if (m_drawType == DRAW_FREEHAND && m_tempFreehandPts.size() >= 2)
 		{
@@ -409,7 +441,7 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 //	// --- 도형 출력 (직선/사각형/원/프리핸드)
 //	for (const auto& shape : m_shapes)
 //	{
-//		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+//		CPen pen(m_curPenStyle, m_curBorderWidth, m_curBorderColor);
 //		CPen* pOldPen = pDC->SelectObject(&pen);
 //
 //		// 프리핸드
@@ -829,6 +861,7 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 			shape.freehandPts = m_tempFreehandPts;
 			shape.borderColor = m_curBorderColor;
 			shape.borderWidth = m_curBorderWidth;
+			shape.penStyle = m_curPenStyle;
 			shape.fillColor = RGB(255, 255, 255); // 프리핸드는 fill 없음
 
 			// start/end 좌표로도 기록 (첫, 끝점)
@@ -863,6 +896,7 @@ void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
 		shape.fillColor = m_curFillColor;
 		shape.borderColor = m_curBorderColor;
 		shape.borderWidth = m_curBorderWidth;
+		shape.penStyle = m_curPenStyle;
 		m_shapes.push_back(shape);
 
 		Invalidate(FALSE);
@@ -1326,7 +1360,7 @@ void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
 	{
 		if (shape.type == DRAW_FREEHAND && shape.freehandPts.size() >= 2)
 		{
-			CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+			CPen pen(shape.penStyle, shape.borderWidth, shape.borderColor);
 			CPen* pOldPen = pDC->SelectObject(&pen);
 
 			// (fillColor는 무시)
@@ -1531,4 +1565,62 @@ void CMFCApplicationView::RemoveShapesOutsideCanvas(int canvasW, int canvasH)
 			}),
 		m_shapes.end()
 	);
+}
+
+void CMFCApplicationView::OnPenStyleSolid()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_SOLID;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("실선 선택"));
+}
+
+void CMFCApplicationView::OnPenStyleDash()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_DASH;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("대신 선택"));
+}
+
+void CMFCApplicationView::OnPenStyleDot()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_DOT;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("점선 선택"));
+}
+
+void CMFCApplicationView::OnPenStyleDashdot()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_DASHDOT;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("대시점 선택"));
+}
+
+void CMFCApplicationView::OnPenWidthSetting()
+{
+	CPenWidthDlg dlg;
+	dlg.m_penWidth = m_curBorderWidth;   // 현재 굵기 넘김
+
+	if (dlg.DoModal() == IDOK)
+	{
+		m_curBorderWidth = dlg.m_penWidth;   // 선택한 굵기로 갱신
+
+		// 로그 남기기
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+		{
+			CString msg;
+			msg.Format(_T("펜 굵기 %dpx로 변경"), m_curBorderWidth);
+			pMainFrm->m_wndOutput.AddLog(msg);
+		}
+
+		Invalidate(FALSE);                   // 다시 그리기
+	}
 }

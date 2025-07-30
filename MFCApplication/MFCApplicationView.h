@@ -30,6 +30,7 @@ protected: // serialization에서만 만들어집니다.
         COLORREF fillColor = RGB(255, 255, 255);    // 채우기 색 
         COLORREF borderColor = RGB(0, 0, 0);        // 외곽선 색 
         int borderWidth = 1;                        // 외곽선 두께
+        int penStyle = PS_SOLID;
         std::vector<CPoint> freehandPts;
     };
 
@@ -71,7 +72,7 @@ public:
     CMFCApplicationDoc* GetDocument() const;
     enum ChannelType { CHANNEL_ORG, CHANNEL_R, CHANNEL_G, CHANNEL_B };
     ChannelType m_selectedChannel = CHANNEL_ORG;
-
+    int m_curPenStyle = PS_SOLID;
 
 
     // 작업입니다.
@@ -173,6 +174,13 @@ public:
     afx_msg void OnDetectStain();
 
     afx_msg void OnUndoShape();
+    afx_msg void OnPenStyleSolid();
+    afx_msg void OnPenStyleDash();
+    afx_msg void OnPenStyleDot();
+    afx_msg void OnPenStyleDashdot();
+
+    afx_msg void OnPenWidthSetting();
+
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전

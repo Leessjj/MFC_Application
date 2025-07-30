@@ -85,6 +85,10 @@
 #define IDS_FIND_TAB                    302
 #define IDS_EXPLORER                    305
 #define IDS_EDIT_MENU                   306
+#define IDD_PEN_WIDTH_DLG               315
+#define IDCANCEL                        1003
+#define IDC_SLIDER_WIDTH                1004
+#define IDC_STATIC_WIDTH                1005
 #define ID_32771                        32771
 #define ID_32772                        32772
 #define ID_32773                        32773
@@ -135,14 +139,26 @@
 #define ID_BUTTON32831                  32831
 #define ID_BUTTON32833                  32833
 #define ID_BUTTON32838                  32838
+#define ID_32839                        32839
+#define ID_32840                        32840
+#define ID_32841                        32841
+#define ID_32842                        32842
+#define ID_32843                        32843
+#define ID_PEN_STYLE_SOLID              32844
+#define ID_PEN_STYLE_DASH               32845
+#define ID_PEN_STYLE_DOT                32846
+#define ID_PEN_STYLE_DASHDOT            32847
+#define ID_32848                        32848
+#define ID_PEN_WIDTH_SETTING            32849
+#define ID_32850                        32850
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        310
-#define _APS_NEXT_COMMAND_VALUE         32839
-#define _APS_NEXT_CONTROL_VALUE         1000
+#define _APS_NEXT_RESOURCE_VALUE        317
+#define _APS_NEXT_COMMAND_VALUE         32851
+#define _APS_NEXT_CONTROL_VALUE         1006
 #define _APS_NEXT_SYMED_VALUE           310
 #endif
 #endif
