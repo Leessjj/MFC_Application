@@ -79,6 +79,13 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_MESSAGE(WM_USER + 206, &CMFCApplicationView::OnNoise)
 	ON_MESSAGE(WM_USER + 207, &CMFCApplicationView::OnStain)
 
+	//펜
+	ON_MESSAGE(WM_USER + 209, &CMFCApplicationView::OnSolid)
+	ON_MESSAGE(WM_USER + 210, &CMFCApplicationView::OnDash)
+	ON_MESSAGE(WM_USER + 211, &CMFCApplicationView::OnDot)
+	ON_MESSAGE(WM_USER + 212, &CMFCApplicationView::OnDashDot)
+	ON_MESSAGE(WM_USER + 213, &CMFCApplicationView::OnPenWidth)
+
 	ON_COMMAND(ID_FILE_SAVE_AS, &CMFCApplicationView::OnFileSaveAs)
 	ON_COMMAND(ID_FILTER_GRAYSCALE, &CMFCApplicationView::OnFilterGrayscale)
 	ON_COMMAND(ID_FILTER_GAUSSIANBLUR, &CMFCApplicationView::OnFilterGaussianblur)
@@ -1100,6 +1107,21 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 				if (strCmd.Left(9) == _T("DRAW_FREE")) {
 					::PostMessage(pView->m_hWnd, WM_USER + 208, 0, 0);
 				}
+				if (strCmd.Left(6) == _T("SOLID")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 209, 0, 0);
+				}
+				if (strCmd.Left(5) == _T("DASH")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 210, 0, 0);
+				}
+				if (strCmd.Left(4) == _T("DOT")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 211, 0, 0);
+				}
+				if (strCmd.Left(8) == _T("DASHDOT")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 212, 0, 0);
+				}
+				if(strCmd.Left(9) == _T("PEN_WIDTH")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 213, 0, 0);
+				}
 			}
 			clientSocket.Close();
 		}
@@ -1287,6 +1309,31 @@ LRESULT CMFCApplicationView::OnNoise(WPARAM wParam, LPARAM)
 LRESULT CMFCApplicationView::OnStain(WPARAM wParam, LPARAM)
 {
 	OnDetectStain();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnSolid(WPARAM wParam, LPARAM)
+{
+	OnPenStyleSolid();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnDash(WPARAM wParam, LPARAM)
+{
+	OnPenStyleDash();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnDot(WPARAM wParam, LPARAM)
+{
+	OnPenStyleDot();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnDashDot(WPARAM wParam, LPARAM)
+{
+	OnPenStyleDashdot();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnPenWidth(WPARAM wParam, LPARAM)
+{
+	OnPenWidthSetting();
 	return 0;
 }
 

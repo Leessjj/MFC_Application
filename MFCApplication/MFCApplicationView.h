@@ -160,6 +160,13 @@ public:
     afx_msg LRESULT OnNoise(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnStain(WPARAM wParam, LPARAM lParam);
 
+    //펜
+    afx_msg LRESULT OnSolid(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnDash(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnDot(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnDashDot(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnPenWidth(WPARAM wParam, LPARAM lParam);
+
     afx_msg void OnFileSaveAs();
     afx_msg void OnFilterGrayscale();
     afx_msg void OnFilterGaussianblur();
