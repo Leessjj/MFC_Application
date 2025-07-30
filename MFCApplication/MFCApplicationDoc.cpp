@@ -751,7 +751,7 @@ void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
     // 4. 가까운 점들끼리 병합(100px 이내면 하나의 ROI)
     struct DefectGroup { int minx, miny, maxx, maxy; std::vector<Pt> pts; };
     std::vector<DefectGroup> groups;
-    int mergeDist = 5;
+    int mergeDist = 13;
 
     for (auto& p : centers) {
         bool merged = false;

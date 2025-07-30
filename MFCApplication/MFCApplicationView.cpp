@@ -1439,6 +1439,58 @@ void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
 		pDC->SelectObject(pOldPen);
 		pDC->SelectObject(pOldBrush);
 	}
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (pDoc && !pDoc->m_defectRegions.empty()) {
+		CPen defectPen(PS_SOLID, 2, RGB(255, 0, 0));
+		CPen* pOldPen = pDC->SelectObject(&defectPen);
+		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+
+		for (const auto& reg : pDoc->m_defectRegions) {
+			// 좌표 변환 (FlipPoint 적용)
+			CPoint pt1 = FlipPoint(CPoint(reg.x, reg.y));
+			CPoint pt2 = FlipPoint(CPoint(reg.x + reg.w, reg.y + reg.h));
+			pDC->Rectangle(CRect(pt1, pt2));
+		}
+
+		pDC->SelectObject(pOldBrush);
+		pDC->SelectObject(pOldPen);
+	}
+	if (pDoc && pDoc->m_stddev > 0)
+	{
+		bool isNoiseOK = (pDoc->m_stddev < 15.0);
+
+		CString resultText = isNoiseOK ? _T("PASS") : _T("FAIL");
+		COLORREF resultColor = isNoiseOK ? RGB(0, 180, 0) : RGB(220, 0, 0);
+
+		CFont bigFont;
+		bigFont.CreatePointFont(240, _T("맑은 고딕"));
+		CFont* pOldFont = pDC->SelectObject(&bigFont);
+
+		CRect resultRect(30, 30, 300, 120); // 위치/크기 필요시 조절
+		pDC->SetTextColor(resultColor);
+		pDC->SetBkMode(TRANSPARENT);
+		pDC->DrawText(resultText, &resultRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+		pDC->SelectObject(pOldFont);
+	}
+
+	
+	if (pDoc && !pDoc->m_stainRegions.empty()) {
+		CPen stainPen(PS_SOLID, 1, RGB(255, 0, 0));
+		CPen* pOldPen = pDC->SelectObject(&stainPen);
+		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+
+		for (const auto& reg : pDoc->m_stainRegions) {
+			//expand 값이 있다면 적용
+			int expand = 50;
+			CPoint pt1 = FlipPoint(CPoint(reg.x - expand, reg.y - expand));
+			CPoint pt2 = FlipPoint(CPoint(reg.x + reg.w + expand, reg.y + reg.h + expand));
+			pDC->Rectangle(CRect(pt1, pt2));
+		}
+
+		pDC->SelectObject(pOldBrush);
+		pDC->SelectObject(pOldPen);
+	}
 }
 
 void CMFCApplicationView::OnFileSaveAs()
