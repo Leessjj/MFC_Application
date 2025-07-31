@@ -73,7 +73,8 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_MESSAGE(WM_USER + 202, &CMFCApplicationView::OnBlur)
 	ON_MESSAGE(WM_USER + 203, &CMFCApplicationView::OnSobel)
 	ON_MESSAGE(WM_USER + 204, &CMFCApplicationView::OnSepia)
-
+	ON_MESSAGE(WM_USER + 214, &CMFCApplicationView::OnThreshold)
+	ON_MESSAGE(WM_USER + 215, &CMFCApplicationView::OnMosaic)
 	//검사
 	ON_MESSAGE(WM_USER + 205, &CMFCApplicationView::OnDefects)
 	ON_MESSAGE(WM_USER + 206, &CMFCApplicationView::OnNoise)
@@ -1531,6 +1532,12 @@ UINT CMFCApplicationView::SocketThreadProc(LPVOID pParam)
 				if(strCmd.Left(9) == _T("PEN_WIDTH")) {
 					::PostMessage(pView->m_hWnd, WM_USER + 213, 0, 0);
 				}
+				if (strCmd.Left(9) == _T("Threshold")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 214, 0, 0);
+				}
+				if (strCmd.Left(6) == _T("Mosaic")) {
+					::PostMessage(pView->m_hWnd, WM_USER + 215, 0, 0);
+				}
 			}
 			clientSocket.Close();
 		}
@@ -1703,6 +1710,16 @@ LRESULT CMFCApplicationView::OnSobel(WPARAM wParam, LPARAM)
 LRESULT CMFCApplicationView::OnSepia(WPARAM wParam, LPARAM)
 {
 	OnFilterSepia();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnThreshold(WPARAM wParam, LPARAM)
+{
+	OnFilterThreshold();
+	return 0;
+}
+LRESULT CMFCApplicationView::OnMosaic(WPARAM wParam, LPARAM)
+{
+	OnFilterMosaic();
 	return 0;
 }
 LRESULT CMFCApplicationView::OnDefects(WPARAM wParam, LPARAM)

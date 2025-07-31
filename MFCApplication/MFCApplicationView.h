@@ -154,7 +154,8 @@ public:
     afx_msg LRESULT OnBlur(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnSobel(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnSepia(WPARAM wParam, LPARAM lParam);
-
+    afx_msg LRESULT OnThreshold(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnMosaic(WPARAM wParam, LPARAM lParam);
     //검사
     afx_msg LRESULT OnDefects(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnNoise(WPARAM wParam, LPARAM lParam);
