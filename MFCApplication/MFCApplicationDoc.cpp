@@ -40,58 +40,6 @@ CMFCApplicationDoc::CMFCApplicationDoc() noexcept
 CMFCApplicationDoc::~CMFCApplicationDoc()
 {
 }
-
-BOOL CMFCApplicationDoc::OnNewDocument()
-{
-    if (!CDocument::OnNewDocument())
-        return FALSE;
-
-    // --- 1. 기존 데이터 완전 해제 ---
-    FreeImage();  // 이미지, 채널 버퍼 모두 해제
-
-    // --- 2. 결함, 스테인, 노이즈 등 분석 관련 값 초기화 ---
-    m_defectRegions.clear();
-    m_stainRegions.clear();
-    m_stddev = 0;
-
-    // --- 3. 도화지(이미지 버퍼) 새로 생성 (흰색) ---
-    int defaultW = 1200;
-    int defaultH = 800;
-    AllocateImage(defaultW, defaultH, 3);
-    m_imgW = defaultW;
-    m_imgH = defaultH;
-    if (m_pImage)
-        memset(m_pImage, 255, defaultW * defaultH * 3);
-
-    // --- 4. 모든 뷰의 상태(도형, 임시변수, 채널, 반전 등)도 완전히 리셋 ---
-    POSITION pos = GetFirstViewPosition();
-    while (pos != NULL) {
-        CView* pView = GetNextView(pos);
-        CMFCApplicationView* pMyView = dynamic_cast<CMFCApplicationView*>(pView);
-        if (pMyView) {
-            pMyView->m_shapes.clear(); // 모든 도형 삭제
-            pMyView->m_drawType = CMFCApplicationView::DRAW_NONE;
-            pMyView->m_bDrawing = FALSE;
-            pMyView->m_tempFreehandPts.clear();
-            pMyView->m_selectedChannel = CMFCApplicationView::CHANNEL_ORG;
-            pMyView->m_bFlipH = false;
-            pMyView->m_bFlipV = false;
-            pMyView->m_bResizing = FALSE;
-            // 추가로 초기화하고 싶은 멤버 있으면 여기에!
-        }
-    }
-
-    // --- 5. 뷰 갱신 ---
-    UpdateAllViews(NULL);
-
-    return TRUE;
-}
-
-
-
-
-
-
 // CMFCApplicationDoc serialization
 
 void CMFCApplicationDoc::Serialize(CArchive& ar)
@@ -262,6 +210,51 @@ BOOL CMFCApplicationDoc::SaveBMP(LPCTSTR lpszPathName)
 
 
 // ---- 명령 함수들 ----
+BOOL CMFCApplicationDoc::OnNewDocument()
+{
+    if (!CDocument::OnNewDocument())
+        return FALSE;
+
+    // --- 1. 기존 데이터 완전 해제 ---
+    FreeImage();  // 이미지, 채널 버퍼 모두 해제
+
+    // --- 2. 결함, 스테인, 노이즈 등 분석 관련 값 초기화 ---
+    m_defectRegions.clear();
+    m_stainRegions.clear();
+    m_stddev = 0;
+
+    // --- 3. 도화지(이미지 버퍼) 새로 생성 (흰색) ---
+    int defaultW = 1200;
+    int defaultH = 800;
+    AllocateImage(defaultW, defaultH, 3);
+    m_imgW = defaultW;
+    m_imgH = defaultH;
+    if (m_pImage)
+        memset(m_pImage, 255, defaultW * defaultH * 3);
+
+    // --- 4. 모든 뷰의 상태(도형, 임시변수, 채널, 반전 등)도 완전히 리셋 ---
+    POSITION pos = GetFirstViewPosition();
+    while (pos != NULL) {
+        CView* pView = GetNextView(pos);
+        CMFCApplicationView* pMyView = dynamic_cast<CMFCApplicationView*>(pView);
+        if (pMyView) {
+            pMyView->m_shapes.clear(); // 모든 도형 삭제
+            pMyView->m_drawType = CMFCApplicationView::DRAW_NONE;
+            pMyView->m_bDrawing = FALSE;
+            pMyView->m_tempFreehandPts.clear();
+            pMyView->m_selectedChannel = CMFCApplicationView::CHANNEL_ORG;
+            pMyView->m_bFlipH = false;
+            pMyView->m_bFlipV = false;
+            pMyView->m_bResizing = FALSE;
+            // 추가로 초기화하고 싶은 멤버 있으면 여기에!
+        }
+    }
+
+    // --- 5. 뷰 갱신 ---
+    UpdateAllViews(NULL);
+
+    return TRUE;
+}
 
 BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
@@ -278,10 +271,6 @@ BOOL CMFCApplicationDoc::OnOpenDocument(LPCTSTR lpszPathName)
         AfxMessageBox(_T("이미지 로드 실패 (24bit BMP만 지원)"));
         return FALSE;
     }
-
-    if (m_pChannelR) { delete[] m_pChannelR; m_pChannelR = nullptr; }
-    if (m_pChannelG) { delete[] m_pChannelG; m_pChannelG = nullptr; }
-    if (m_pChannelB) { delete[] m_pChannelB; m_pChannelB = nullptr; }
 
     POSITION pos = GetFirstViewPosition();
     while (pos != NULL) {
@@ -365,7 +354,7 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
         memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS
     );
 
-    // ⑤ [중요] 도형 합성 (반전 옵션 자동 적용)
+    // ⑤ 도형 합성 (반전 옵션 자동 적용)
     pView->DrawAllShapesToDC(&memDC);
 
     // ⑥ DC에서 다시 DIB 버퍼로 추출
@@ -407,15 +396,15 @@ void CMFCApplicationDoc::ExtractRGBChannel(char channel)
 {
     if (!m_pImage) return;
 
-    PushUndo(); // ★ 이 한 줄로 Undo 100% 지원
+    PushUndo();
 
     int width = m_width, height = m_height;
     int imgW = m_imgW, imgH = m_imgH;
 
     CString logMsg;
-    if (channel == 'R') logMsg = _T("도화지: R채널로 추출");
-    else if (channel == 'G') logMsg = _T("도화지: G채널로 추출");
-    else if (channel == 'B') logMsg = _T("도화지: B채널로 추출");
+    if (channel == 'R') logMsg = _T("R채널로 추출");
+    else if (channel == 'G') logMsg = _T("G채널로 추출");
+    else if (channel == 'B') logMsg = _T("B채널로 추출");
 
     CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
     if (pMainFrm) pMainFrm->m_wndOutput.AddLog(logMsg);

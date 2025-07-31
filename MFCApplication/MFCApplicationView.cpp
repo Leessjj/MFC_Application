@@ -134,6 +134,7 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	CBitmap memBmp;
 	memBmp.CreateCompatibleBitmap(pDC, clientRect.Width(), clientRect.Height());
 	CBitmap* pOldBmp = memDC.SelectObject(&memBmp);
+	memDC.SetViewportOrg(pDC->GetViewportOrg());
 
 	// 2. 기존 코드의 pDC를 memDC로 "그대로" 바꿔서 사용
 	memDC.FillSolidRect(clientRect, RGB(211, 211, 211));
@@ -373,7 +374,9 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 	}
 
 	// --- 실제화면에 복사!
+	CPoint scrollPos = GetScrollPosition();
 	pDC->BitBlt(0, 0, clientRect.Width(), clientRect.Height(), &memDC, 0, 0, SRCCOPY);
+
 	memDC.SelectObject(pOldBmp);
 }
 //void CMFCApplicationView::OnDraw(CDC* pDC)
@@ -778,8 +781,6 @@ void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 	}
 }
 
-
-
 void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
 {
 	if (!m_bResizing) {
@@ -991,9 +992,6 @@ void CMFCApplicationView::OnFlipVertical()
 	Invalidate();           // 화면 다시 그리기 요청
 }
 
-
-
-
 CPoint CMFCApplicationView::FlipPoint(const CPoint& pt, int width, int height) const
 {
 	CPoint out = pt;
@@ -1004,6 +1002,372 @@ CPoint CMFCApplicationView::FlipPoint(const CPoint& pt, int width, int height) c
 	return out;
 }
 
+// 도화지의 오른쪽/아래/모서리 핸들 영역 체크
+CMFCApplicationView::ResizeHitTest CMFCApplicationView::HitTestResizeHandle(CPoint pt)
+{
+	CMFCApplicationDoc* pDoc = GetDocument();
+	int canvasW = pDoc->m_width;
+	int canvasH = pDoc->m_height;
+	const int HANDLE_SIZE = 10;
+
+	// pt는 "뷰 좌표"임 (스크롤 오프셋 이미 포함된 상태라면 아래 한 줄 생략 가능)
+	pt += GetScrollPosition();
+
+	// === 반드시 "이미지 좌표계"로 변환 ===
+	CPoint imgPt = ViewToImage(pt, m_zoom, m_bFlipH, m_bFlipV, canvasW, canvasH);
+
+	// 이제 imgPt와 도화지 끝(캔버스 크기) 비교
+	if (abs(imgPt.x - canvasW) <= HANDLE_SIZE && abs(imgPt.y - canvasH) <= HANDLE_SIZE)
+		return RESIZE_CORNER;
+	if (abs(imgPt.x - canvasW) <= HANDLE_SIZE && imgPt.y < canvasH)
+		return RESIZE_RIGHT;
+	if (abs(imgPt.y - canvasH) <= HANDLE_SIZE && imgPt.x < canvasW)
+		return RESIZE_BOTTOM;
+	return RESIZE_NONE;
+}
+
+
+bool CMFCApplicationView::IsInCanvas(CPoint pt)
+{
+	CMFCApplicationDoc* pDoc = GetDocument();
+	int x = pt.x + GetScrollPosition().x;
+	int y = pt.y + GetScrollPosition().y;
+	return (x >= 0 && x < pDoc->m_width && y >= 0 && y < pDoc->m_height);
+}
+
+void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
+{
+	int nW = GetDocument()->m_width;
+	int nH = GetDocument()->m_height;
+
+	auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
+		CPoint res = pt;
+		if (m_bFlipH) res.x = nW - 1 - res.x;
+		if (m_bFlipV) res.y = nH - 1 - res.y;
+		return res;
+		};
+
+	for (const auto& shape : m_shapes)
+	{
+		if (shape.type == DRAW_FREEHAND && shape.freehandPts.size() >= 2)
+		{
+			CPen pen(shape.penStyle, shape.borderWidth, shape.borderColor);
+			CPen* pOldPen = pDC->SelectObject(&pen);
+
+			// (fillColor는 무시)
+			auto pt = FlipPoint(shape.freehandPts[0]);
+			pDC->MoveTo(pt);
+			for (size_t i = 1; i < shape.freehandPts.size(); ++i)
+			{
+				auto pt2 = FlipPoint(shape.freehandPts[i]);
+				pDC->LineTo(pt2);
+			}
+
+			pDC->SelectObject(pOldPen);
+			continue; // 아래 도형 switch-case로 안 들어감
+		}
+		CPoint pt1 = FlipPoint(shape.start);
+		CPoint pt2 = FlipPoint(shape.end);
+
+		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
+		CPen* pOldPen = pDC->SelectObject(&pen);
+		CBrush brush(shape.fillColor);
+		CBrush* pOldBrush = pDC->SelectObject(&brush);
+
+		switch (shape.type)
+		{
+		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
+		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
+		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
+		}
+		pDC->SelectObject(pOldPen);
+		pDC->SelectObject(pOldBrush);
+	}
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (pDoc && !pDoc->m_defectRegions.empty()) {
+		CPen defectPen(PS_SOLID, 2, RGB(255, 0, 0));
+		CPen* pOldPen = pDC->SelectObject(&defectPen);
+		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+
+		for (const auto& reg : pDoc->m_defectRegions) {
+			// 좌표 변환 (FlipPoint 적용)
+			int expand = 7;
+			CPoint pt1 = FlipPoint(CPoint(reg.x - expand, reg.y - expand));
+			CPoint pt2 = FlipPoint(CPoint(reg.x + reg.w + expand, reg.y + reg.h + expand));
+			pDC->Rectangle(CRect(pt1, pt2));
+		}
+
+		pDC->SelectObject(pOldBrush);
+		pDC->SelectObject(pOldPen);
+	}
+	if (pDoc && pDoc->m_stddev > 0)
+	{
+		bool isNoiseOK = (pDoc->m_stddev < 15.0);
+
+		CString resultText = isNoiseOK ? _T("PASS") : _T("FAIL");
+		COLORREF resultColor = isNoiseOK ? RGB(0, 180, 0) : RGB(220, 0, 0);
+
+		CFont bigFont;
+		bigFont.CreatePointFont(240, _T("맑은 고딕"));
+		CFont* pOldFont = pDC->SelectObject(&bigFont);
+
+		CRect resultRect(30, 30, 300, 120); // 위치/크기 필요시 조절
+		pDC->SetTextColor(resultColor);
+		pDC->SetBkMode(TRANSPARENT);
+		pDC->DrawText(resultText, &resultRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+		pDC->SelectObject(pOldFont);
+	}
+
+
+	if (pDoc && !pDoc->m_stainRegions.empty()) {
+		CPen stainPen(PS_SOLID, 1, RGB(255, 0, 0));
+		CPen* pOldPen = pDC->SelectObject(&stainPen);
+		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+
+		for (const auto& reg : pDoc->m_stainRegions) {
+			//expand 값이 있다면 적용
+			int expand = 50;
+			CPoint pt1 = FlipPoint(CPoint(reg.x - expand, reg.y - expand));
+			CPoint pt2 = FlipPoint(CPoint(reg.x + reg.w + expand, reg.y + reg.h + expand));
+			pDC->Rectangle(CRect(pt1, pt2));
+		}
+
+		pDC->SelectObject(pOldBrush);
+		pDC->SelectObject(pOldPen);
+	}
+}
+
+void CMFCApplicationView::OnFileSaveAs()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CFileDialog dlg(FALSE, _T("bmp"), NULL,
+		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
+		_T("BMP Files (*.bmp)|*.bmp||"));
+	if (dlg.DoModal() != IDOK)
+		return;
+
+	CString filePath = dlg.GetPathName();
+
+	// Document 포인터 얻어서 직접 저장 호출
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (pDoc)
+		pDoc->OnSaveDocument(filePath);
+}
+
+void CMFCApplicationView::OnFilterGrayscale()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("그레이스케일(흑백) 필터 적용"));
+
+	GetDocument()->ApplyGrayscale();
+}
+
+void CMFCApplicationView::OnFilterGaussianblur()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("가우시안 블러 필터 적용"));
+
+	GetDocument()->ApplyGaussianBlur();
+}
+
+void CMFCApplicationView::OnFilterSobeledge()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("엣지 검출(소벨) 필터 적용"));
+
+	GetDocument()->ApplySobelEdge();
+}
+
+void CMFCApplicationView::OnFilterSepia()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("세피아톤 필터 적용"));
+
+	GetDocument()->ApplySepia();
+}
+void CMFCApplicationView::OnUndoShape()
+{
+	if (!m_shapes.empty()) {
+		m_shapes.pop_back();
+		Invalidate(FALSE); // 화면 다시 그리기
+	}
+}
+void CMFCApplicationView::OnEditUndo()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	GetDocument()->Undo();
+	OnUndoShape();
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("Undo(되돌리기) 실행"));
+}
+
+BOOL CMFCApplicationView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+	// Ctrl 키가 눌렸을 때만 동작
+	if (GetKeyState(VK_CONTROL) & 0x8000) {
+		double prevZoom = m_zoom;
+		if (zDelta > 0)      m_zoom *= 1.1; // 확대
+		else if (zDelta < 0) m_zoom /= 1.1; // 축소
+
+		if (m_zoom < 0.1) m_zoom = 0.1;
+		if (m_zoom > 10.0) m_zoom = 10.0;
+
+		// 도화지(이미지) 크기에 배율 적용해서 스크롤 크기 설정
+		CMFCApplicationDoc* pDoc = GetDocument();
+		int w = int(pDoc->m_width * m_zoom);
+		int h = int(pDoc->m_height * m_zoom);
+		SetScrollSizes(MM_TEXT, CSize(w, h));
+
+		Invalidate(FALSE); // 화면 다시 그리기
+		return TRUE;
+	}
+	// Ctrl 없이 휠 돌리면 원래 스크롤 기능
+	return CScrollView::OnMouseWheel(nFlags, zDelta, pt);
+}
+
+void CMFCApplicationView::OnDetectDefects()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	GetDocument()->DetectDefects();
+	Invalidate(FALSE); // 갱신
+}
+
+void CMFCApplicationView::OnCheckNoise()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (!pDoc) return;
+
+	// Gray 변환 (최근 이미지 기준, 기존 방식 재활용)
+	int w = pDoc->m_width, h = pDoc->m_height;
+	if (!pDoc->m_pImage) return;
+	std::vector<BYTE> gray(w * h);
+	for (int i = 0; i < w * h; ++i) {
+		BYTE b = pDoc->m_pImage[i * 3 + 0];
+		BYTE g = pDoc->m_pImage[i * 3 + 1];
+		BYTE r = pDoc->m_pImage[i * 3 + 2];
+		gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+	}
+
+	// 표준편차(노이즈) 계산
+	double sum = 0, sqsum = 0;
+	int N = (int)gray.size();
+	for (int i = 0; i < N; ++i) {
+		sum += gray[i];
+		sqsum += double(gray[i]) * gray[i];
+	}
+	double mean = sum / N;
+	double var = (sqsum / N) - (mean * mean);
+	double stddev = sqrt(var);
+
+	// 노이즈 판정 (예: 15.0 기준)
+	bool isNoiseOK = (stddev < 15.0);
+
+	// 로그로 결과 남기기
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm) {
+		pMainFrm->m_wndOutput.AddLog(_T("== Noise 검출 =="));
+
+		CString msg;
+		msg.Format(_T("StdDev: %.2f - %s"), stddev, isNoiseOK ? _T("PASS") : _T("FAIL"));
+		pMainFrm->m_wndOutput.AddLog(msg);
+	}
+
+	// (화면에 별도 PASS/FAIL 표시 원하면, 멤버변수로 상태 저장 후 Invalidate 호출)
+	pDoc->m_stddev = stddev; // Doc에 저장해두면 OnDraw에서 활용 가능
+	Invalidate(FALSE);       // 화면 갱신
+}
+
+void CMFCApplicationView::OnDetectStain()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMFCApplicationDoc* pDoc = GetDocument();
+	if (pDoc) {
+		pDoc->DetectStainRegions(); // 실제 검출
+		Invalidate(FALSE); // 뷰 갱신(박스 표시)
+	}
+}
+void CMFCApplicationView::RemoveShapesOutsideCanvas(int canvasW, int canvasH)
+{
+	auto isInCanvas = [canvasW, canvasH](const DrawShape& s) {
+		return (s.start.x >= 0 && s.start.x < canvasW && s.start.y >= 0 && s.start.y < canvasH &&
+			s.end.x >= 0 && s.end.x < canvasW && s.end.y >= 0 && s.end.y < canvasH);
+		};
+	m_shapes.erase(
+		std::remove_if(m_shapes.begin(), m_shapes.end(), [=](const DrawShape& s) {
+			return !isInCanvas(s);
+			}),
+		m_shapes.end()
+	);
+}
+
+void CMFCApplicationView::OnPenStyleSolid()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_SOLID;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("실선 선택"));
+}
+
+void CMFCApplicationView::OnPenStyleDash()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_DASH;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("대신 선택"));
+}
+
+void CMFCApplicationView::OnPenStyleDot()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_DOT;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("점선 선택"));
+}
+
+void CMFCApplicationView::OnPenStyleDashdot()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	m_curPenStyle = PS_DASHDOT;
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("대시점 선택"));
+}
+
+void CMFCApplicationView::OnPenWidthSetting()
+{
+	CPenWidthDlg dlg;
+	dlg.m_penWidth = m_curBorderWidth;   // 현재 굵기 넘김
+
+	if (dlg.DoModal() == IDOK)
+	{
+		m_curBorderWidth = dlg.m_penWidth;   // 선택한 굵기로 갱신
+
+		// 로그 남기기
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+		{
+			CString msg;
+			msg.Format(_T("펜 굵기 %dpx로 변경"), m_curBorderWidth);
+			pMainFrm->m_wndOutput.AddLog(msg);
+		}
+
+		Invalidate(FALSE);                   // 다시 그리기
+	}
+}
 
 //소켓 작업
 
@@ -1354,372 +1718,5 @@ void CMFCApplicationView::OnInitialUpdate()
 	}
 	else {
 		SetScrollSizes(MM_TEXT, CSize(800, 600));
-	}
-}
-
-
-// 도화지의 오른쪽/아래/모서리 핸들 영역 체크
-CMFCApplicationView::ResizeHitTest CMFCApplicationView::HitTestResizeHandle(CPoint pt)
-{
-	CMFCApplicationDoc* pDoc = GetDocument();
-	int canvasW = pDoc->m_width;
-	int canvasH = pDoc->m_height;
-	const int HANDLE_SIZE = 10;
-
-	// pt는 "뷰 좌표"임 (스크롤 오프셋 이미 포함된 상태라면 아래 한 줄 생략 가능)
-	pt += GetScrollPosition();
-
-	// === 반드시 "이미지 좌표계"로 변환 ===
-	CPoint imgPt = ViewToImage(pt, m_zoom, m_bFlipH, m_bFlipV, canvasW, canvasH);
-
-	// 이제 imgPt와 도화지 끝(캔버스 크기) 비교
-	if (abs(imgPt.x - canvasW) <= HANDLE_SIZE && abs(imgPt.y - canvasH) <= HANDLE_SIZE)
-		return RESIZE_CORNER;
-	if (abs(imgPt.x - canvasW) <= HANDLE_SIZE && imgPt.y < canvasH)
-		return RESIZE_RIGHT;
-	if (abs(imgPt.y - canvasH) <= HANDLE_SIZE && imgPt.x < canvasW)
-		return RESIZE_BOTTOM;
-	return RESIZE_NONE;
-}
-
-
-bool CMFCApplicationView::IsInCanvas(CPoint pt)
-{
-	CMFCApplicationDoc* pDoc = GetDocument();
-	int x = pt.x + GetScrollPosition().x;
-	int y = pt.y + GetScrollPosition().y;
-	return (x >= 0 && x < pDoc->m_width && y >= 0 && y < pDoc->m_height);
-}
-
-void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
-{
-	int nW = GetDocument()->m_width;
-	int nH = GetDocument()->m_height;
-
-	auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
-		CPoint res = pt;
-		if (m_bFlipH) res.x = nW - 1 - res.x;
-		if (m_bFlipV) res.y = nH - 1 - res.y;
-		return res;
-		};
-
-	for (const auto& shape : m_shapes)
-	{
-		if (shape.type == DRAW_FREEHAND && shape.freehandPts.size() >= 2)
-		{
-			CPen pen(shape.penStyle, shape.borderWidth, shape.borderColor);
-			CPen* pOldPen = pDC->SelectObject(&pen);
-
-			// (fillColor는 무시)
-			auto pt = FlipPoint(shape.freehandPts[0]);
-			pDC->MoveTo(pt);
-			for (size_t i = 1; i < shape.freehandPts.size(); ++i)
-			{
-				auto pt2 = FlipPoint(shape.freehandPts[i]);
-				pDC->LineTo(pt2);
-			}
-
-			pDC->SelectObject(pOldPen);
-			continue; // 아래 도형 switch-case로 안 들어감
-		}
-		CPoint pt1 = FlipPoint(shape.start);
-		CPoint pt2 = FlipPoint(shape.end);
-
-		CPen pen(PS_SOLID, shape.borderWidth, shape.borderColor);
-		CPen* pOldPen = pDC->SelectObject(&pen);
-		CBrush brush(shape.fillColor);
-		CBrush* pOldBrush = pDC->SelectObject(&brush);
-
-		switch (shape.type)
-		{
-		case DRAW_LINE:    pDC->MoveTo(pt1); pDC->LineTo(pt2); break;
-		case DRAW_RECT:    pDC->Rectangle(CRect(pt1, pt2)); break;
-		case DRAW_ELLIPSE: pDC->Ellipse(CRect(pt1, pt2)); break;
-		}
-		pDC->SelectObject(pOldPen);
-		pDC->SelectObject(pOldBrush);
-	}
-	CMFCApplicationDoc* pDoc = GetDocument();
-	if (pDoc && !pDoc->m_defectRegions.empty()) {
-		CPen defectPen(PS_SOLID, 2, RGB(255, 0, 0));
-		CPen* pOldPen = pDC->SelectObject(&defectPen);
-		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
-
-		for (const auto& reg : pDoc->m_defectRegions) {
-			// 좌표 변환 (FlipPoint 적용)
-			CPoint pt1 = FlipPoint(CPoint(reg.x, reg.y));
-			CPoint pt2 = FlipPoint(CPoint(reg.x + reg.w, reg.y + reg.h));
-			pDC->Rectangle(CRect(pt1, pt2));
-		}
-
-		pDC->SelectObject(pOldBrush);
-		pDC->SelectObject(pOldPen);
-	}
-	if (pDoc && pDoc->m_stddev > 0)
-	{
-		bool isNoiseOK = (pDoc->m_stddev < 15.0);
-
-		CString resultText = isNoiseOK ? _T("PASS") : _T("FAIL");
-		COLORREF resultColor = isNoiseOK ? RGB(0, 180, 0) : RGB(220, 0, 0);
-
-		CFont bigFont;
-		bigFont.CreatePointFont(240, _T("맑은 고딕"));
-		CFont* pOldFont = pDC->SelectObject(&bigFont);
-
-		CRect resultRect(30, 30, 300, 120); // 위치/크기 필요시 조절
-		pDC->SetTextColor(resultColor);
-		pDC->SetBkMode(TRANSPARENT);
-		pDC->DrawText(resultText, &resultRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-
-		pDC->SelectObject(pOldFont);
-	}
-
-	
-	if (pDoc && !pDoc->m_stainRegions.empty()) {
-		CPen stainPen(PS_SOLID, 1, RGB(255, 0, 0));
-		CPen* pOldPen = pDC->SelectObject(&stainPen);
-		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
-
-		for (const auto& reg : pDoc->m_stainRegions) {
-			//expand 값이 있다면 적용
-			int expand = 50;
-			CPoint pt1 = FlipPoint(CPoint(reg.x - expand, reg.y - expand));
-			CPoint pt2 = FlipPoint(CPoint(reg.x + reg.w + expand, reg.y + reg.h + expand));
-			pDC->Rectangle(CRect(pt1, pt2));
-		}
-
-		pDC->SelectObject(pOldBrush);
-		pDC->SelectObject(pOldPen);
-	}
-}
-
-void CMFCApplicationView::OnFileSaveAs()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	CFileDialog dlg(FALSE, _T("bmp"), NULL,
-		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT,
-		_T("BMP Files (*.bmp)|*.bmp||"));
-	if (dlg.DoModal() != IDOK)
-		return;
-
-	CString filePath = dlg.GetPathName();
-
-	// Document 포인터 얻어서 직접 저장 호출
-	CMFCApplicationDoc* pDoc = GetDocument();
-	if (pDoc)
-		pDoc->OnSaveDocument(filePath);
-}
-
-void CMFCApplicationView::OnFilterGrayscale()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("그레이스케일(흑백) 필터 적용"));
-
-	GetDocument()->ApplyGrayscale();
-}
-
-void CMFCApplicationView::OnFilterGaussianblur()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("가우시안 블러 필터 적용"));
-
-	GetDocument()->ApplyGaussianBlur();
-}
-
-void CMFCApplicationView::OnFilterSobeledge()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("엣지 검출(소벨) 필터 적용"));
-
-	GetDocument()->ApplySobelEdge();
-}
-
-void CMFCApplicationView::OnFilterSepia()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("세피아톤 필터 적용"));
-
-	GetDocument()->ApplySepia();
-}
-void CMFCApplicationView::OnUndoShape()
-{
-	if (!m_shapes.empty()) {
-		m_shapes.pop_back();
-		Invalidate(FALSE); // 화면 다시 그리기
-	}
-}
-void CMFCApplicationView::OnEditUndo()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	GetDocument()->Undo();
-	OnUndoShape();
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("Undo(되돌리기) 실행"));
-}
-
-BOOL CMFCApplicationView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
-{
-	// Ctrl 키가 눌렸을 때만 동작
-	if (GetKeyState(VK_CONTROL) & 0x8000) {
-		double prevZoom = m_zoom;
-		if (zDelta > 0)      m_zoom *= 1.1; // 확대
-		else if (zDelta < 0) m_zoom /= 1.1; // 축소
-
-		if (m_zoom < 0.1) m_zoom = 0.1;
-		if (m_zoom > 10.0) m_zoom = 10.0;
-
-		// 도화지(이미지) 크기에 배율 적용해서 스크롤 크기 설정
-		CMFCApplicationDoc* pDoc = GetDocument();
-		int w = int(pDoc->m_width * m_zoom);
-		int h = int(pDoc->m_height * m_zoom);
-		SetScrollSizes(MM_TEXT, CSize(w, h));
-
-		Invalidate(FALSE); // 화면 다시 그리기
-		return TRUE;
-	}
-	// Ctrl 없이 휠 돌리면 원래 스크롤 기능
-	return CScrollView::OnMouseWheel(nFlags, zDelta, pt);
-}
-
-void CMFCApplicationView::OnDetectDefects()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	GetDocument()->DetectDefects();
-	Invalidate(FALSE); // 갱신
-}
-
-void CMFCApplicationView::OnCheckNoise()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	CMFCApplicationDoc* pDoc = GetDocument();
-	if (!pDoc) return;
-
-	// Gray 변환 (최근 이미지 기준, 기존 방식 재활용)
-	int w = pDoc->m_width, h = pDoc->m_height;
-	if (!pDoc->m_pImage) return;
-	std::vector<BYTE> gray(w * h);
-	for (int i = 0; i < w * h; ++i) {
-		BYTE b = pDoc->m_pImage[i * 3 + 0];
-		BYTE g = pDoc->m_pImage[i * 3 + 1];
-		BYTE r = pDoc->m_pImage[i * 3 + 2];
-		gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
-	}
-
-	// 표준편차(노이즈) 계산
-	double sum = 0, sqsum = 0;
-	int N = (int)gray.size();
-	for (int i = 0; i < N; ++i) {
-		sum += gray[i];
-		sqsum += double(gray[i]) * gray[i];
-	}
-	double mean = sum / N;
-	double var = (sqsum / N) - (mean * mean);
-	double stddev = sqrt(var);
-
-	// 노이즈 판정 (예: 15.0 기준)
-	bool isNoiseOK = (stddev < 15.0);
-
-	// 로그로 결과 남기기
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm) {
-		pMainFrm->m_wndOutput.AddLog(_T("== Noise 검출 =="));
-
-		CString msg;
-		msg.Format(_T("StdDev: %.2f - %s"), stddev, isNoiseOK ? _T("PASS") : _T("FAIL"));
-		pMainFrm->m_wndOutput.AddLog(msg);
-	}
-
-	// (화면에 별도 PASS/FAIL 표시 원하면, 멤버변수로 상태 저장 후 Invalidate 호출)
-	pDoc->m_stddev = stddev; // Doc에 저장해두면 OnDraw에서 활용 가능
-	Invalidate(FALSE);       // 화면 갱신
-}
-
-void CMFCApplicationView::OnDetectStain()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	CMFCApplicationDoc* pDoc = GetDocument();
-	if (pDoc) {
-		pDoc->DetectStainRegions(); // 실제 검출
-		Invalidate(FALSE); // 뷰 갱신(박스 표시)
-	}
-}
-void CMFCApplicationView::RemoveShapesOutsideCanvas(int canvasW, int canvasH)
-{
-	auto isInCanvas = [canvasW, canvasH](const DrawShape& s) {
-		return (s.start.x >= 0 && s.start.x < canvasW && s.start.y >= 0 && s.start.y < canvasH &&
-			s.end.x >= 0 && s.end.x < canvasW && s.end.y >= 0 && s.end.y < canvasH);
-		};
-	m_shapes.erase(
-		std::remove_if(m_shapes.begin(), m_shapes.end(), [=](const DrawShape& s) {
-			return !isInCanvas(s);
-			}),
-		m_shapes.end()
-	);
-}
-
-void CMFCApplicationView::OnPenStyleSolid()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	m_curPenStyle = PS_SOLID;
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("실선 선택"));
-}
-
-void CMFCApplicationView::OnPenStyleDash()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	m_curPenStyle = PS_DASH;
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("대신 선택"));
-}
-
-void CMFCApplicationView::OnPenStyleDot()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	m_curPenStyle = PS_DOT;
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("점선 선택"));
-}
-
-void CMFCApplicationView::OnPenStyleDashdot()
-{
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
-	m_curPenStyle = PS_DASHDOT;
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("대시점 선택"));
-}
-
-void CMFCApplicationView::OnPenWidthSetting()
-{
-	CPenWidthDlg dlg;
-	dlg.m_penWidth = m_curBorderWidth;   // 현재 굵기 넘김
-
-	if (dlg.DoModal() == IDOK)
-	{
-		m_curBorderWidth = dlg.m_penWidth;   // 선택한 굵기로 갱신
-
-		// 로그 남기기
-		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-		if (pMainFrm)
-		{
-			CString msg;
-			msg.Format(_T("펜 굵기 %dpx로 변경"), m_curBorderWidth);
-			pMainFrm->m_wndOutput.AddLog(msg);
-		}
-
-		Invalidate(FALSE);                   // 다시 그리기
 	}
 }

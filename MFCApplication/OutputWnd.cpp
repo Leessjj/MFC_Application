@@ -127,9 +127,9 @@ void COutputWnd::FillBuildWindow()
 
 void COutputWnd::FillDebugWindow()
 {
-	m_wndOutputDebug.AddString(_T("여기에 디버그 출력이 표시됩니다."));
+	/*m_wndOutputDebug.AddString(_T("여기에 디버그 출력이 표시됩니다."));
 	m_wndOutputDebug.AddString(_T("출력이 목록 뷰 행에 표시되지만"));
-	m_wndOutputDebug.AddString(_T("표시 방법을 원하는 대로 변경할 수 있습니다."));
+	m_wndOutputDebug.AddString(_T("표시 방법을 원하는 대로 변경할 수 있습니다."));*/
 }
 
 void COutputWnd::FillFindWindow()
