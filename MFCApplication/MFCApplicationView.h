@@ -188,6 +188,8 @@ public:
 
     afx_msg void OnPenWidthSetting();
 
+    afx_msg void OnFilterThreshold();
+    afx_msg void OnFilterMosaic();
 };
 
 #ifndef _DEBUG  // MFCApplicationView.cpp의 디버그 버전

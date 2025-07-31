@@ -151,13 +151,17 @@
 #define ID_32848                        32848
 #define ID_PEN_WIDTH_SETTING            32849
 #define ID_32850                        32850
+#define ID_32851                        32851
+#define ID_FILTER_Threshold             32852
+#define ID_32853                        32853
+#define ID_FILTER_Mosaic                32854
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        317
-#define _APS_NEXT_COMMAND_VALUE         32851
+#define _APS_NEXT_COMMAND_VALUE         32855
 #define _APS_NEXT_CONTROL_VALUE         1006
 #define _APS_NEXT_SYMED_VALUE           310
 #endif

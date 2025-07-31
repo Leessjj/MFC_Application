@@ -57,7 +57,8 @@ public:
 	void ApplyGaussianBlur();
 	void ApplySobelEdge();
 	void ApplySepia();
-
+	void ApplyThreshold();
+	void ApplyMosaic();
 	void PushUndo();
 	void Undo();
 

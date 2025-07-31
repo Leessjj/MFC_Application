@@ -672,12 +672,81 @@ void CMFCApplicationDoc::ApplySepia()
     }
     UpdateAllViews(NULL);
 }
+void CMFCApplicationDoc::ApplyThreshold()
+{
+    PushUndo();
+    BYTE threshold = 128;
+    if (!m_pImage) return;
+    int w = m_width, h = m_height;
+    int imgW = m_imgW, imgH = m_imgH;
+    for (int y = 0; y < imgH; ++y)
+    {
+        for (int x = 0; x < imgW; ++x)
+        {
+            int idx = (y * w + x) * 3;
+            BYTE b = m_pImage[idx + 0];
+            BYTE g = m_pImage[idx + 1];
+            BYTE r = m_pImage[idx + 2];
+            BYTE gray = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+            BYTE bw = (gray >= threshold) ? 255 : 0;
+            m_pImage[idx + 0] = bw;
+            m_pImage[idx + 1] = bw;
+            m_pImage[idx + 2] = bw;
+        }
+    }
+    UpdateAllViews(NULL);
+}
 
+void CMFCApplicationDoc::ApplyMosaic()
+{
+    PushUndo();
+    if (!m_pImage) return;
+
+    int blockSize = 10;  // 여기서 블록 크기(10픽셀) 고정!
+    int w = m_width, h = m_height;
+    int imgW = m_imgW, imgH = m_imgH;
+
+    for (int by = 0; by < imgH; by += blockSize)
+    {
+        for (int bx = 0; bx < imgW; bx += blockSize)
+        {
+            int sumR = 0, sumG = 0, sumB = 0, cnt = 0;
+
+            for (int y = by; y < by + blockSize && y < imgH; ++y)
+            {
+                for (int x = bx; x < bx + blockSize && x < imgW; ++x)
+                {
+                    int idx = (y * w + x) * 3;
+                    sumB += m_pImage[idx + 0];
+                    sumG += m_pImage[idx + 1];
+                    sumR += m_pImage[idx + 2];
+                    cnt++;
+                }
+            }
+
+            BYTE avgB = (BYTE)(sumB / cnt);
+            BYTE avgG = (BYTE)(sumG / cnt);
+            BYTE avgR = (BYTE)(sumR / cnt);
+
+            for (int y = by; y < by + blockSize && y < imgH; ++y)
+            {
+                for (int x = bx; x < bx + blockSize && x < imgW; ++x)
+                {
+                    int idx = (y * w + x) * 3;
+                    m_pImage[idx + 0] = avgB;
+                    m_pImage[idx + 1] = avgG;
+                    m_pImage[idx + 2] = avgR;
+                }
+            }
+        }
+    }
+    UpdateAllViews(NULL);
+}
 
 void CMFCApplicationDoc::PushUndo()
 {
     if (!m_pImage) return;
-    // 최대 스택 크기 제한(10단계 등) - 옵션
+    // 최대 스택 크기 제한
     const size_t MAX_UNDO = 10;
     if (m_undoStack.size() >= MAX_UNDO)
         m_undoStack.erase(m_undoStack.begin()); // 가장 오래된 것 삭제
@@ -882,7 +951,7 @@ void CMFCApplicationDoc::DetectStainRegions()
         }
     }
 
-    // 7. ROI 병합 (중심점 거리 100이하면 하나로 취급)
+    // 7. ROI 병합 (중심점 거리 150이하면 하나로 취급)
     struct StainGroup {
         int minx, miny, maxx, maxy;
         std::vector<std::pair<int, int>> centers;

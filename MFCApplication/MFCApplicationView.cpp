@@ -104,6 +104,8 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 
 	ON_COMMAND(ID_PEN_WIDTH_SETTING, &CMFCApplicationView::OnPenWidthSetting)
 
+	ON_COMMAND(ID_FILTER_Threshold, &CMFCApplicationView::OnFilterThreshold)
+	ON_COMMAND(ID_FILTER_Mosaic, &CMFCApplicationView::OnFilterMosaic)
 END_MESSAGE_MAP()
 
 // CMFCApplicationView 생성/소멸
@@ -329,14 +331,20 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		CPen* pOldPen = memDC.SelectObject(&defectPen);
 
 		CBrush* pOldBrush = (CBrush*)memDC.SelectStockObject(NULL_BRUSH);
+		int expand = int(7 * m_zoom); //expand 적용
+
 		for (const auto& reg : pDoc->m_defectRegions)
 		{
-			int x1 = int(reg.x * m_zoom), y1 = int(reg.y * m_zoom);
-			int x2 = int((reg.x + reg.w) * m_zoom), y2 = int((reg.y + reg.h) * m_zoom);
+			int x1 = int(reg.x * m_zoom) - expand;
+			int y1 = int(reg.y * m_zoom) - expand;
+			int x2 = int((reg.x + reg.w) * m_zoom) + expand;
+			int y2 = int((reg.y + reg.h) * m_zoom) + expand;
 			memDC.Rectangle(x1, y1, x2, y2);
 		}
+		memDC.SelectObject(pOldBrush);
 		memDC.SelectObject(pOldPen);
 	}
+
 
 	if (pDoc->m_stddev > 0) {
 		bool isNoiseOK = (pDoc->m_stddev < 15.0);
@@ -952,25 +960,41 @@ void CMFCApplicationView::OnViewSaveasimage()
 
 void CMFCApplicationView::OnBnClickedBtnFillColor()
 {
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("도형색 선택"));
 	CColorDialog dlg(m_curFillColor);
 	if (dlg.DoModal() == IDOK)
 	{
 		m_curFillColor = dlg.GetColor();
+
+		int r = GetRValue(m_curFillColor);
+		int g = GetGValue(m_curFillColor);
+		int b = GetBValue(m_curFillColor);
+
+		CString msg;
+		msg.Format(_T("도형색 선택: R=%d, G=%d, B=%d"), r, g, b);
+
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(msg);
 	}
 }
 
 void CMFCApplicationView::OnBnClickedBtnBorderColor()
 {
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("선 색 선택"));
 	CColorDialog dlg(m_curBorderColor);
 	if (dlg.DoModal() == IDOK)
 	{
 		m_curBorderColor = dlg.GetColor();
+
+		int r = GetRValue(m_curBorderColor);
+		int g = GetGValue(m_curBorderColor);
+		int b = GetBValue(m_curBorderColor);
+
+		CString msg;
+		msg.Format(_T("선 색 선택: R=%d, G=%d, B=%d"), r, g, b);
+
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(msg);
 	}
 }
 
@@ -1194,6 +1218,27 @@ void CMFCApplicationView::OnFilterSepia()
 
 	GetDocument()->ApplySepia();
 }
+
+void CMFCApplicationView::OnFilterThreshold()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("이진화 필터 적용"));
+
+	GetDocument()->ApplyThreshold();
+}
+
+void CMFCApplicationView::OnFilterMosaic()
+{
+	// TODO: 여기에 명령 처리기 코드를 추가합니다.
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("모자이크 필터 적용"));
+
+	GetDocument()->ApplyMosaic();
+}
+
 void CMFCApplicationView::OnUndoShape()
 {
 	if (!m_shapes.empty()) {
