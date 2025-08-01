@@ -313,6 +313,7 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		}
 		memDC.SelectObject(pOldPen);
 	}
+	memDC.SelectClipRgn(NULL);
 
 	// 이하 핸들, 결함박스 등도 전부 pDC → memDC로 바꿔서 사용
 
