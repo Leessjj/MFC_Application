@@ -1,6 +1,3 @@
-C:\education\20250721_인턴과제_이미지\샘플 이미지\Noise\se.bmp
-== Noise 검출 (평면추세 제거) ==
-StdDev(Residual): 14.96 - FAIL
-C:\education\20250721_인턴과제_이미지\샘플 이미지\Noise\데드픽셀불량.bmp
-== Noise 검출 (평면추세 제거) ==
-StdDev(Residual): 28.88 - FAIL
+C:\education\20250721_인턴과제_이미지\샘플 이미지\Noise\Noise_3.bmp
+== Noise 검출 ==
+StdDev(CenterRatio 0.60): 21.81 - FAIL

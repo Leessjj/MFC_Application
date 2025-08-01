@@ -34,6 +34,7 @@ public:
 
 	// --- [2] 결함 검출 함수 선언 ---
 	void DetectDefects(int threshold = 40, int minSize = 10);
+	void DetectNoise();
 	void DetectStainRegions();
 	struct StainRegion { int x, y, w, h; };
 	std::vector<StainRegion> m_stainRegions;

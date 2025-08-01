@@ -857,6 +857,52 @@ void CMFCApplicationDoc::DetectDefects(int diffThres, int minSize)
     }
 }
 
+void CMFCApplicationDoc::DetectNoise() {
+    if (!m_pImage) return;
+
+    int w = m_width, h = m_height;
+    std::vector<BYTE> gray(w * h);
+    for (int i = 0; i < w * h; ++i) {
+        BYTE b = m_pImage[i * 3 + 0];
+        BYTE g = m_pImage[i * 3 + 1];
+        BYTE r = m_pImage[i * 3 + 2];
+        gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+    }
+
+    double centerRatio = 0.6;
+    int x0 = (int)(w * (1.0 - centerRatio) / 2.0);
+    int x1 = (int)(w * (1.0 + centerRatio) / 2.0);
+    int y0 = (int)(h * (1.0 - centerRatio) / 2.0);
+    int y1 = (int)(h * (1.0 + centerRatio) / 2.0);
+
+    double sum = 0, sqsum = 0;
+    int N = 0;
+    for (int y = y0; y < y1; ++y) {
+        for (int x = x0; x < x1; ++x) {
+            int idx = y * w + x;
+            double val = gray[idx];
+            sum += val;
+            sqsum += val * val;
+            ++N;
+        }
+    }
+    double mean = (N > 0) ? (sum / N) : 0;
+    double var = (N > 0) ? ((sqsum / N) - (mean * mean)) : 0;
+    double stddev = sqrt(var);
+
+    bool isNoiseOK = (stddev < 15.0);
+
+    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+    if (pMainFrm) {
+        pMainFrm->m_wndOutput.AddLog(_T("== Noise 검출 =="));
+        CString msg;
+        msg.Format(_T("StdDev(CenterRatio %.2f): %.2f - %s"),
+            centerRatio, stddev, isNoiseOK ? _T("PASS") : _T("FAIL"));
+        pMainFrm->m_wndOutput.AddLog(msg);
+    }
+
+    m_stddev = stddev;
+}
 
 void CMFCApplicationDoc::DetectStainRegions()
 {
