@@ -207,6 +207,10 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 		if (m_bFlipV) res.y = nH - 1 - res.y;
 		return res;
 		};
+	int canvasW = int(pDoc->m_width * m_zoom);
+	int canvasH = int(pDoc->m_height * m_zoom);
+	CRect canvasRect(0, 0, canvasW, canvasH);
+	memDC.IntersectClipRect(canvasRect);
 
 	// --- 도형 및 미리보기 등 (좌표에 zoom 곱해서 출력)
 	//GDI의 기본 CPen은 폭이 1일 때만 대시(점선, 대시점 등)가 제대로 적용되는 현상
@@ -312,8 +316,6 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 
 	// 이하 핸들, 결함박스 등도 전부 pDC → memDC로 바꿔서 사용
 
-	int canvasW = int(pDoc->m_width * m_zoom);
-	int canvasH = int(pDoc->m_height * m_zoom);
 	const int HANDLE_SIZE = 10; // 고정
 
 	memDC.FillSolidRect(canvasW - HANDLE_SIZE / 2, canvasH - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE, RGB(0, 0, 0));
@@ -1064,7 +1066,7 @@ void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
 {
 	int nW = GetDocument()->m_width;
 	int nH = GetDocument()->m_height;
-
+	pDC->IntersectClipRect(CRect(0, 0, nW, nH));
 	auto FlipPoint = [this, nW, nH](const CPoint& pt) -> CPoint {
 		CPoint res = pt;
 		if (m_bFlipH) res.x = nW - 1 - res.x;
@@ -1345,17 +1347,27 @@ void CMFCApplicationView::OnDetectStain()
 }
 void CMFCApplicationView::RemoveShapesOutsideCanvas(int canvasW, int canvasH)
 {
-	auto isInCanvas = [canvasW, canvasH](const DrawShape& s) {
-		return (s.start.x >= 0 && s.start.x < canvasW && s.start.y >= 0 && s.start.y < canvasH &&
-			s.end.x >= 0 && s.end.x < canvasW && s.end.y >= 0 && s.end.y < canvasH);
-		};
+	CRect canvasRect(0, 0, canvasW, canvasH);
 	m_shapes.erase(
-		std::remove_if(m_shapes.begin(), m_shapes.end(), [=](const DrawShape& s) {
-			return !isInCanvas(s);
-			}),
+		std::remove_if(m_shapes.begin(), m_shapes.end(),
+			[&](const DrawShape& s) {
+				// 도형의 Bounding Rect 계산 (start, end 사용)
+				CRect shapeRect(
+					min(s.start.x, s.end.x),
+					min(s.start.y, s.end.y),
+					max(s.start.x, s.end.x),
+					max(s.start.y, s.end.y)
+				);
+				CRect inter;
+				// IntersectRect: 겹치면 TRUE, 겹치지 않으면 FALSE
+				return !inter.IntersectRect(canvasRect, shapeRect);
+				// 겹치지 않는 도형만 삭제
+			}
+		),
 		m_shapes.end()
 	);
 }
+
 
 void CMFCApplicationView::OnPenStyleSolid()
 {
