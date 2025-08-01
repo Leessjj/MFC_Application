@@ -351,7 +351,7 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 
 
 	if (pDoc->m_stddev > 0) {
-		bool isNoiseOK = (pDoc->m_stddev < 15.0);
+		bool isNoiseOK = (pDoc->m_stddev < 8.0);
 
 		CString resultText = isNoiseOK ? _T("PASS") : _T("FAIL");
 		COLORREF resultColor = isNoiseOK ? RGB(0, 180, 0) : RGB(220, 0, 0);
@@ -1299,49 +1299,119 @@ void CMFCApplicationView::OnDetectDefects()
 
 void CMFCApplicationView::OnCheckNoise()
 {
-	// TODO: 여기에 명령 처리기 코드를 추가합니다.
 	CMFCApplicationDoc* pDoc = GetDocument();
 	if (!pDoc) return;
 
-	// Gray 변환 (최근 이미지 기준, 기존 방식 재활용)
 	int w = pDoc->m_width, h = pDoc->m_height;
 	if (!pDoc->m_pImage) return;
-	std::vector<BYTE> gray(w * h);
+	std::vector<double> gray(w * h);
 	for (int i = 0; i < w * h; ++i) {
 		BYTE b = pDoc->m_pImage[i * 3 + 0];
 		BYTE g = pDoc->m_pImage[i * 3 + 1];
 		BYTE r = pDoc->m_pImage[i * 3 + 2];
-		gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
+		gray[i] = 0.299 * r + 0.587 * g + 0.114 * b;
 	}
 
-	// 표준편차(노이즈) 계산
-	double sum = 0, sqsum = 0;
-	int N = (int)gray.size();
+	// 최소제곱 1차 평면 피팅 (z = a*x + b*y + c)
+	// 정규방정식 S를 직접 계산
+	double sumX = 0, sumY = 0, sumZ = 0;
+	double sumX2 = 0, sumY2 = 0, sumXY = 0;
+	double sumXZ = 0, sumYZ = 0;
+	int N = w * h;
+
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x) {
+			int idx = y * w + x;
+			double fx = (double)x / w;  // 정규화된 좌표 [0,1]
+			double fy = (double)y / h;
+			double fz = gray[idx];
+			sumX += fx;
+			sumY += fy;
+			sumZ += fz;
+			sumX2 += fx * fx;
+			sumY2 += fy * fy;
+			sumXY += fx * fy;
+			sumXZ += fx * fz;
+			sumYZ += fy * fz;
+		}
+	}
+
+	// 3x3 선형방정식
+	// | sumX2 sumXY sumX |   | a |   | sumXZ |
+	// | sumXY sumY2 sumY | * | b | = | sumYZ |
+	// | sumX  sumY   N   |   | c |   | sumZ  |
+	double A[3][3] = {
+		{sumX2, sumXY, sumX},
+		{sumXY, sumY2, sumY},
+		{sumX,  sumY,  (double)N}
+	};
+	double B[3] = { sumXZ, sumYZ, sumZ };
+
+	// 가우스 소거법(직접 코드), 혹은 크래머 공식(여기선 간단하게 구현)
+	// 3x3 행렬의 역행렬 및 해 구하기
+	double detA =
+		A[0][0] * (A[1][1] * A[2][2] - A[1][2] * A[2][1]) -
+		A[0][1] * (A[1][0] * A[2][2] - A[1][2] * A[2][0]) +
+		A[0][2] * (A[1][0] * A[2][1] - A[1][1] * A[2][0]);
+
+	if (fabs(detA) < 1e-12) return; // 역행렬 불가
+
+	// 행렬식 부분 계산
+	double invA[3][3];
+	invA[0][0] = (A[1][1] * A[2][2] - A[1][2] * A[2][1]) / detA;
+	invA[0][1] = (A[0][2] * A[2][1] - A[0][1] * A[2][2]) / detA;
+	invA[0][2] = (A[0][1] * A[1][2] - A[0][2] * A[1][1]) / detA;
+	invA[1][0] = (A[1][2] * A[2][0] - A[1][0] * A[2][2]) / detA;
+	invA[1][1] = (A[0][0] * A[2][2] - A[0][2] * A[2][0]) / detA;
+	invA[1][2] = (A[0][2] * A[1][0] - A[0][0] * A[1][2]) / detA;
+	invA[2][0] = (A[1][0] * A[2][1] - A[1][1] * A[2][0]) / detA;
+	invA[2][1] = (A[0][1] * A[2][0] - A[0][0] * A[2][1]) / detA;
+	invA[2][2] = (A[0][0] * A[1][1] - A[0][1] * A[1][0]) / detA;
+
+	double a = 0, b = 0, c = 0;
+	for (int i = 0; i < 3; ++i) {
+		a += invA[0][i] * B[i];
+		b += invA[1][i] * B[i];
+		c += invA[2][i] * B[i];
+	}
+
+	// 잔차 계산 (실제 - 피팅값)
+	std::vector<double> residuals(N);
+	for (int y = 0; y < h; ++y) {
+		for (int x = 0; x < w; ++x) {
+			int idx = y * w + x;
+			double fx = (double)x / w;
+			double fy = (double)y / h;
+			double fit = a * fx + b * fy + c;
+			residuals[idx] = gray[idx] - fit;
+		}
+	}
+
+	// 잔차 표준편차
+	double sumR = 0, sqsumR = 0;
 	for (int i = 0; i < N; ++i) {
-		sum += gray[i];
-		sqsum += double(gray[i]) * gray[i];
+		sumR += residuals[i];
+		sqsumR += residuals[i] * residuals[i];
 	}
-	double mean = sum / N;
-	double var = (sqsum / N) - (mean * mean);
-	double stddev = sqrt(var);
+	double meanR = sumR / N;
+	double varR = (sqsumR / N) - (meanR * meanR);
+	double stddev = sqrt(varR);
 
-	// 노이즈 판정 (예: 15.0 기준)
-	bool isNoiseOK = (stddev < 15.0);
+	bool isNoiseOK = (stddev < 8.0); // 기존보다 임계값을 낮추세요
 
 	// 로그로 결과 남기기
 	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
 	if (pMainFrm) {
-		pMainFrm->m_wndOutput.AddLog(_T("== Noise 검출 =="));
-
+		pMainFrm->m_wndOutput.AddLog(_T("== Noise 검출 (평면추세 제거) =="));
 		CString msg;
-		msg.Format(_T("StdDev: %.2f - %s"), stddev, isNoiseOK ? _T("PASS") : _T("FAIL"));
+		msg.Format(_T("StdDev(Residual): %.2f - %s"), stddev, isNoiseOK ? _T("PASS") : _T("FAIL"));
 		pMainFrm->m_wndOutput.AddLog(msg);
 	}
 
-	// (화면에 별도 PASS/FAIL 표시 원하면, 멤버변수로 상태 저장 후 Invalidate 호출)
-	pDoc->m_stddev = stddev; // Doc에 저장해두면 OnDraw에서 활용 가능
-	Invalidate(FALSE);       // 화면 갱신
+	pDoc->m_stddev = stddev;
+	Invalidate(FALSE);
 }
+
 
 void CMFCApplicationView::OnDetectStain()
 {
