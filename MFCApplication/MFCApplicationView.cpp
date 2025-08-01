@@ -571,14 +571,20 @@ void CMFCApplicationView::OnDraw(CDC* pDC)
 //		CPen* pOldPen = pDC->SelectObject(&defectPen);
 //
 //		CBrush* pOldBrush = (CBrush*)pDC->SelectStockObject(NULL_BRUSH);
+//		int expand = int(7 * m_zoom);
+//
 //		for (const auto& reg : pDoc->m_defectRegions)
 //		{
-//			int x1 = int(reg.x * m_zoom), y1 = int(reg.y * m_zoom);
-//			int x2 = int((reg.x + reg.w) * m_zoom), y2 = int((reg.y + reg.h) * m_zoom);
+//			int x1 = int(reg.x * m_zoom) - expand;
+//			int y1 = int(reg.y * m_zoom) - expand;
+//			int x2 = int((reg.x + reg.w) * m_zoom) + expand;
+//			int y2 = int((reg.y + reg.h) * m_zoom) + expand;
 //			pDC->Rectangle(x1, y1, x2, y2);
 //		}
+//		pDC->SelectObject(pOldBrush);
 //		pDC->SelectObject(pOldPen);
 //	}
+//
 //
 //	// 노이즈 검사 후만 PASS/FAIL 표시 (m_stddev > 0)
 //	if (pDoc->m_stddev > 0) {
