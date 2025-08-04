@@ -1,9 +1,8 @@
-C:\education\20250721_인턴과제_이미지\샘플 이미지\Filter\IU.bmp
-Undo(되돌리기) 실행
-C:\education\20250721_인턴과제_이미지\샘플 이미지\Filter\Rena.bmp
-사각형 선택
+원 선택
 Undo(되돌리기) 실행
 Undo(되돌리기) 실행
+Undo(되돌리기) 실행
+펜 선택
 Undo(되돌리기) 실행
 Undo(되돌리기) 실행
 Undo(되돌리기) 실행

@@ -917,7 +917,6 @@ void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
 	// ---- 프리핸드 모드 ---
 	if (m_drawType == DRAW_FREEHAND)
 	{
-		PushShapeUndo();
 		m_bDrawing = TRUE;
 		m_tempFreehandPts.clear();
 		m_startPoint = imgPt;
@@ -985,7 +984,7 @@ void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
 	}
 	if (m_bDrawing && m_drawType == DRAW_FREEHAND)
 	{
-		PushShapeUndo();
+		
 		// 드래그 도중 좌표 계속 추가 (이미지 범위 clip)
 		CMFCApplicationDoc* pDoc = GetDocument();
 		CPoint imgPt = ViewToImage(
