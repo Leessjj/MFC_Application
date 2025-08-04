@@ -869,7 +869,7 @@ void CMFCApplicationDoc::DetectNoise() {
         gray[i] = (BYTE)(0.299 * r + 0.587 * g + 0.114 * b + 0.5);
     }
 
-    double centerRatio = 0.6;
+    double centerRatio = 0.5;
     int x0 = (int)(w * (1.0 - centerRatio) / 2.0);
     int x1 = (int)(w * (1.0 + centerRatio) / 2.0);
     int y0 = (int)(h * (1.0 - centerRatio) / 2.0);
@@ -936,8 +936,11 @@ void CMFCApplicationDoc::DetectStainRegions()
     int ksize = 90; // (멍보다 크게)
     for (int y = ksize; y < h - ksize; ++y) {
         for (int x = ksize; x < w - ksize; ++x) {
-            int x1 = x - ksize, x2 = x + ksize;
-            int y1 = y - ksize, y2 = y + ksize;
+            int x1 = max(0, x - ksize);
+            int x2 = min(w - 1, x + ksize);
+            int y1 = max(0, y - ksize);
+            int y2 = min(h - 1, y + ksize);
+
             long long s = integral[(y2 + 1) * (w + 1) + (x2 + 1)]
                 - integral[(y1) * (w + 1) + (x2 + 1)]
                 - integral[(y2 + 1) * (w + 1) + (x1)]
@@ -946,6 +949,7 @@ void CMFCApplicationDoc::DetectStainRegions()
             blur[y * w + x] = (BYTE)(s / area);
         }
     }
+
 
     // 4. Diff(blur-gray)
     std::vector<int> diff(w * h, 0);

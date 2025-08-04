@@ -67,6 +67,8 @@ protected: // serialization에서만 만들어집니다.
 
     std::vector<CPoint> m_tempFreehandPts;
 
+    std::vector<std::vector<DrawShape>> m_shapesUndoStack;
+
     // 특성입니다.
 public:
     CMFCApplicationDoc* GetDocument() const;
@@ -174,7 +176,7 @@ public:
     afx_msg void OnFilterSobeledge();
     afx_msg void OnFilterSepia();
     afx_msg void OnEditUndo();
-
+    afx_msg void PushShapeUndo();
     afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 
     afx_msg void OnDetectDefects();

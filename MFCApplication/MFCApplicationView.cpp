@@ -751,291 +751,6 @@ CPoint CMFCApplicationView::ViewToImage(const CPoint& pt, double zoom, bool flip
 	return CPoint(x, y);
 }
 
-void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
-{
-	if (!m_bResizing) {
-		m_resizeHit = HitTestResizeHandle(point);
-		if (m_resizeHit != RESIZE_NONE) {
-			m_bResizing = TRUE;
-			m_resizeStartPt = point;
-			CMFCApplicationDoc* pDoc = GetDocument();
-			m_resizeOrigW = pDoc->m_width;
-			m_resizeOrigH = pDoc->m_height;
-			m_resizePreviewW = m_resizeOrigW;
-			m_resizePreviewH = m_resizeOrigH;
-			SetCapture();
-			return;
-		}
-	}
-
-	// === View 좌표 → 이미지 좌표 변환 ===
-	CMFCApplicationDoc* pDoc = GetDocument();
-	CPoint imgPt = ViewToImage(
-		point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
-		pDoc->m_width, pDoc->m_height
-	);
-
-	// === 반드시 이미지 좌표로 캔버스 내부 판정 ===
-	if (!IsInCanvas(imgPt)) return;
-
-	// ---- 프리핸드 모드 ---
-	if (m_drawType == DRAW_FREEHAND)
-	{
-		m_bDrawing = TRUE;
-		m_tempFreehandPts.clear();
-		m_startPoint = imgPt;
-		m_tempFreehandPts.push_back(imgPt);
-		SetCapture();
-		return;
-	}
-
-	// ---- 사각형/직선/타원 등 ---
-	if (m_drawType != DRAW_NONE)
-	{
-		m_bDrawing = TRUE;
-		m_startPoint = imgPt;
-		m_endPoint = imgPt;
-		SetCapture();
-	}
-}
-
-void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
-{
-	if (!m_bResizing) {
-		ResizeHitTest hit = HitTestResizeHandle(point);
-		if (hit == RESIZE_CORNER)
-			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZENWSE));
-		else if (hit == RESIZE_RIGHT)
-			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEWE));
-		else if (hit == RESIZE_BOTTOM)
-			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZENS));
-	}
-	if (m_bResizing) {
-		CPoint delta = point - m_resizeStartPt;
-		int newW = m_resizeOrigW;
-		int newH = m_resizeOrigH;
-
-		if (m_resizeHit == RESIZE_RIGHT)
-			newW = max(50, m_resizeOrigW + delta.x);
-		else if (m_resizeHit == RESIZE_BOTTOM)
-			newH = max(50, m_resizeOrigH + delta.y);
-		else if (m_resizeHit == RESIZE_CORNER) {
-			newW = max(50, m_resizeOrigW + delta.x);
-			newH = max(50, m_resizeOrigH + delta.y);
-		}
-
-		m_resizePreviewW = newW;
-		m_resizePreviewH = newH;
-		Invalidate(FALSE);
-		return;
-	}
-
-	if (m_bDrawing)
-	{
-		// === 좌표 변환 적용 ===
-		CMFCApplicationDoc* pDoc = GetDocument();
-		CPoint imgPt = ViewToImage(
-			point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
-			pDoc->m_width, pDoc->m_height
-		);
-
-		// 도화지 크기 내로 한정
-		imgPt.x = max(0, min(imgPt.x, pDoc->m_width - 1));
-		imgPt.y = max(0, min(imgPt.y, pDoc->m_height - 1));
-
-		m_endPoint = imgPt;
-		Invalidate(TRUE);
-	}
-	if (m_bDrawing && m_drawType == DRAW_FREEHAND)
-	{
-		// 드래그 도중 좌표 계속 추가 (이미지 범위 clip)
-		CMFCApplicationDoc* pDoc = GetDocument();
-		CPoint imgPt = ViewToImage(
-			point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
-			pDoc->m_width, pDoc->m_height
-		);
-		imgPt.x = max(0, min(imgPt.x, pDoc->m_width - 1));
-		imgPt.y = max(0, min(imgPt.y, pDoc->m_height - 1));
-		m_tempFreehandPts.push_back(imgPt);
-		Invalidate(FALSE);
-	}
-
-}
-
-void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
-{
-	if (m_bResizing) {
-		m_bResizing = FALSE;
-		ReleaseCapture();
-		int finalW = m_resizePreviewW;
-		int finalH = m_resizePreviewH;
-		CMFCApplicationDoc* pDoc = GetDocument();
-		if (finalW != pDoc->m_width || finalH != pDoc->m_height)
-			pDoc->ResizeCanvas(finalW, finalH);
-		Invalidate(FALSE);
-		return;
-	}
-
-	if (m_bDrawing && m_drawType == DRAW_FREEHAND)
-	{
-		m_bDrawing = FALSE;
-		ReleaseCapture();
-
-		if (m_tempFreehandPts.size() >= 2) {
-			DrawShape shape;
-			shape.type = DRAW_FREEHAND;
-			shape.freehandPts = m_tempFreehandPts;
-			shape.borderColor = m_curBorderColor;
-			shape.borderWidth = m_curBorderWidth;
-			shape.penStyle = m_curPenStyle;
-			shape.fillColor = RGB(255, 255, 255); // 프리핸드는 fill 없음
-
-			// start/end 좌표로도 기록 (첫, 끝점)
-			shape.start = m_tempFreehandPts.front();
-			shape.end = m_tempFreehandPts.back();
-
-			m_shapes.push_back(shape);
-		}
-		m_tempFreehandPts.clear();
-		Invalidate(FALSE);
-		return; // 프리핸드 처리 후 종료!
-	}
-	else if (m_bDrawing)
-	{
-		// === 좌표 변환 적용 ===
-		CMFCApplicationDoc* pDoc = GetDocument();
-		CPoint imgPt = ViewToImage(
-			point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
-			pDoc->m_width, pDoc->m_height
-		);
-		// ⭐ 드래그 끝점도 반드시 clip
-		imgPt.x = max(0, min(imgPt.x, pDoc->m_width - 1));
-		imgPt.y = max(0, min(imgPt.y, pDoc->m_height - 1));
-		m_endPoint = imgPt;
-		m_bDrawing = FALSE;
-		ReleaseCapture();
-
-		DrawShape shape;
-		shape.type = m_drawType;
-		shape.start = m_startPoint;
-		shape.end = m_endPoint;
-		shape.fillColor = m_curFillColor;
-		shape.borderColor = m_curBorderColor;
-		shape.borderWidth = m_curBorderWidth;
-		shape.penStyle = m_curPenStyle;
-		m_shapes.push_back(shape);
-
-		Invalidate(FALSE);
-	}
-}
-BOOL CMFCApplicationView::OnEraseBkgnd(CDC* pDC)
-{
-	return TRUE; // 배경 지우기 안함
-}
-
-
-void CMFCApplicationView::OnViewSaveasimage()
-{
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("모두 선택"));
-	// 파일 다이얼로그 띄움
-	CFileDialog dlg(FALSE, _T("bmp"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("BMP Files (*.bmp)|*.bmp||"));
-	if (dlg.DoModal() == IDOK)
-	{
-		CString filePath = dlg.GetPathName();
-		// 화면 저장 코드 바로 작성!
-		CRect rect;
-		GetClientRect(&rect);
-		CDC memDC;
-		CBitmap bitmap;
-
-		CDC* pDC = GetDC();
-		memDC.CreateCompatibleDC(pDC);
-		bitmap.CreateCompatibleBitmap(pDC, rect.Width(), rect.Height());
-		CBitmap* pOldBitmap = memDC.SelectObject(&bitmap);
-
-		memDC.BitBlt(0, 0, rect.Width(), rect.Height(), pDC, 0, 0, SRCCOPY);
-
-		// 저장
-		CImage image;
-		image.Attach((HBITMAP)bitmap.Detach());
-		image.Save(filePath, Gdiplus::ImageFormatBMP);
-		image.Detach();
-
-		memDC.SelectObject(pOldBitmap);
-		ReleaseDC(pDC);
-	}
-}
-
-void CMFCApplicationView::OnBnClickedBtnFillColor()
-{
-	CColorDialog dlg(m_curFillColor);
-	if (dlg.DoModal() == IDOK)
-	{
-		m_curFillColor = dlg.GetColor();
-
-		int r = GetRValue(m_curFillColor);
-		int g = GetGValue(m_curFillColor);
-		int b = GetBValue(m_curFillColor);
-
-		CString msg;
-		msg.Format(_T("도형색 선택: R=%d, G=%d, B=%d"), r, g, b);
-
-		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-		if (pMainFrm)
-			pMainFrm->m_wndOutput.AddLog(msg);
-	}
-}
-
-void CMFCApplicationView::OnBnClickedBtnBorderColor()
-{
-	CColorDialog dlg(m_curBorderColor);
-	if (dlg.DoModal() == IDOK)
-	{
-		m_curBorderColor = dlg.GetColor();
-
-		int r = GetRValue(m_curBorderColor);
-		int g = GetGValue(m_curBorderColor);
-		int b = GetBValue(m_curBorderColor);
-
-		CString msg;
-		msg.Format(_T("선 색 선택: R=%d, G=%d, B=%d"), r, g, b);
-
-		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-		if (pMainFrm)
-			pMainFrm->m_wndOutput.AddLog(msg);
-	}
-}
-
-void CMFCApplicationView::OnFlipHorizontal()
-{
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("좌우 반전"));
-	m_bFlipH = !m_bFlipH;   // 좌우 반전 상태 토글
-	Invalidate();           // 화면 다시 그리기 요청
-}
-
-void CMFCApplicationView::OnFlipVertical()
-{
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("상하 반전"));
-	m_bFlipV = !m_bFlipV;   // 상하 반전 상태 토글
-	Invalidate();           // 화면 다시 그리기 요청
-}
-
-CPoint CMFCApplicationView::FlipPoint(const CPoint& pt, int width, int height) const
-{
-	CPoint out = pt;
-	if (m_bFlipH)
-		out.x = width - 1 - out.x;
-	if (m_bFlipV)
-		out.y = height - 1 - out.y;
-	return out;
-}
-
 // 도화지의 오른쪽/아래/모서리 핸들 영역 체크
 CMFCApplicationView::ResizeHitTest CMFCApplicationView::HitTestResizeHandle(CPoint pt)
 {
@@ -1172,6 +887,295 @@ void CMFCApplicationView::DrawAllShapesToDC(CDC* pDC)
 	}
 }
 
+void CMFCApplicationView::OnLButtonDown(UINT nFlags, CPoint point)
+{
+	if (!m_bResizing) {
+		m_resizeHit = HitTestResizeHandle(point);
+		if (m_resizeHit != RESIZE_NONE) {
+			m_bResizing = TRUE;
+			m_resizeStartPt = point;
+			CMFCApplicationDoc* pDoc = GetDocument();
+			m_resizeOrigW = pDoc->m_width;
+			m_resizeOrigH = pDoc->m_height;
+			m_resizePreviewW = m_resizeOrigW;
+			m_resizePreviewH = m_resizeOrigH;
+			SetCapture();
+			return;
+		}
+	}
+
+	// === View 좌표 → 이미지 좌표 변환 ===
+	CMFCApplicationDoc* pDoc = GetDocument();
+	CPoint imgPt = ViewToImage(
+		point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+		pDoc->m_width, pDoc->m_height
+	);
+
+	// === 반드시 이미지 좌표로 캔버스 내부 판정 ===
+	if (!IsInCanvas(imgPt)) return;
+
+	// ---- 프리핸드 모드 ---
+	if (m_drawType == DRAW_FREEHAND)
+	{
+		PushShapeUndo();
+		m_bDrawing = TRUE;
+		m_tempFreehandPts.clear();
+		m_startPoint = imgPt;
+		m_tempFreehandPts.push_back(imgPt);
+		SetCapture();
+		return;
+	}
+
+	// ---- 사각형/직선/타원 등 ---
+	if (m_drawType != DRAW_NONE)
+	{
+		m_bDrawing = TRUE;
+		m_startPoint = imgPt;
+		m_endPoint = imgPt;
+		SetCapture();
+	}
+}
+
+void CMFCApplicationView::OnMouseMove(UINT nFlags, CPoint point)
+{
+	if (!m_bResizing) {
+		ResizeHitTest hit = HitTestResizeHandle(point);
+		if (hit == RESIZE_CORNER)
+			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZENWSE));
+		else if (hit == RESIZE_RIGHT)
+			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZEWE));
+		else if (hit == RESIZE_BOTTOM)
+			::SetCursor(AfxGetApp()->LoadStandardCursor(IDC_SIZENS));
+	}
+	if (m_bResizing) {
+		CPoint delta = point - m_resizeStartPt;
+		int newW = m_resizeOrigW;
+		int newH = m_resizeOrigH;
+
+		if (m_resizeHit == RESIZE_RIGHT)
+			newW = max(50, m_resizeOrigW + delta.x);
+		else if (m_resizeHit == RESIZE_BOTTOM)
+			newH = max(50, m_resizeOrigH + delta.y);
+		else if (m_resizeHit == RESIZE_CORNER) {
+			newW = max(50, m_resizeOrigW + delta.x);
+			newH = max(50, m_resizeOrigH + delta.y);
+		}
+
+		m_resizePreviewW = newW;
+		m_resizePreviewH = newH;
+		Invalidate(FALSE);
+		return;
+	}
+
+	if (m_bDrawing)
+	{
+		// === 좌표 변환 적용 ===
+		CMFCApplicationDoc* pDoc = GetDocument();
+		CPoint imgPt = ViewToImage(
+			point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+			pDoc->m_width, pDoc->m_height
+		);
+
+		// 도화지 크기 내로 한정
+		imgPt.x = max(0, min(imgPt.x, pDoc->m_width - 1));
+		imgPt.y = max(0, min(imgPt.y, pDoc->m_height - 1));
+
+		m_endPoint = imgPt;
+		Invalidate(TRUE);
+	}
+	if (m_bDrawing && m_drawType == DRAW_FREEHAND)
+	{
+		PushShapeUndo();
+		// 드래그 도중 좌표 계속 추가 (이미지 범위 clip)
+		CMFCApplicationDoc* pDoc = GetDocument();
+		CPoint imgPt = ViewToImage(
+			point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+			pDoc->m_width, pDoc->m_height
+		);
+		imgPt.x = max(0, min(imgPt.x, pDoc->m_width - 1));
+		imgPt.y = max(0, min(imgPt.y, pDoc->m_height - 1));
+		m_tempFreehandPts.push_back(imgPt);
+		Invalidate(FALSE);
+	}
+
+}
+
+void CMFCApplicationView::OnLButtonUp(UINT nFlags, CPoint point)
+{
+	if (m_bResizing) {
+		m_bResizing = FALSE;
+		ReleaseCapture();
+		int finalW = m_resizePreviewW;
+		int finalH = m_resizePreviewH;
+		CMFCApplicationDoc* pDoc = GetDocument();
+		if (finalW != pDoc->m_width || finalH != pDoc->m_height)
+			pDoc->ResizeCanvas(finalW, finalH);
+		Invalidate(FALSE);
+		return;
+	}
+
+	if (m_bDrawing && m_drawType == DRAW_FREEHAND)
+	{
+		m_bDrawing = FALSE;
+		ReleaseCapture();
+
+		if (m_tempFreehandPts.size() >= 2) {
+			PushShapeUndo();
+			DrawShape shape;
+			shape.type = DRAW_FREEHAND;
+			shape.freehandPts = m_tempFreehandPts;
+			shape.borderColor = m_curBorderColor;
+			shape.borderWidth = m_curBorderWidth;
+			shape.penStyle = m_curPenStyle;
+			shape.fillColor = RGB(255, 255, 255); // 프리핸드는 fill 없음
+
+			// start/end 좌표로도 기록 (첫, 끝점)
+			shape.start = m_tempFreehandPts.front();
+			shape.end = m_tempFreehandPts.back();
+
+			m_shapes.push_back(shape);
+		}
+		m_tempFreehandPts.clear();
+		Invalidate(FALSE);
+		return; // 프리핸드 처리 후 종료!
+	}
+	else if (m_bDrawing)
+	{
+		PushShapeUndo();
+		// === 좌표 변환 적용 ===
+		CMFCApplicationDoc* pDoc = GetDocument();
+		CPoint imgPt = ViewToImage(
+			point + GetScrollPosition(), m_zoom, m_bFlipH, m_bFlipV,
+			pDoc->m_width, pDoc->m_height
+		);
+		// ⭐ 드래그 끝점도 반드시 clip
+		imgPt.x = max(0, min(imgPt.x, pDoc->m_width - 1));
+		imgPt.y = max(0, min(imgPt.y, pDoc->m_height - 1));
+		m_endPoint = imgPt;
+		m_bDrawing = FALSE;
+		ReleaseCapture();
+
+		DrawShape shape;
+		shape.type = m_drawType;
+		shape.start = m_startPoint;
+		shape.end = m_endPoint;
+		shape.fillColor = m_curFillColor;
+		shape.borderColor = m_curBorderColor;
+		shape.borderWidth = m_curBorderWidth;
+		shape.penStyle = m_curPenStyle;
+		m_shapes.push_back(shape);
+
+		Invalidate(FALSE);
+	}
+}
+BOOL CMFCApplicationView::OnEraseBkgnd(CDC* pDC)
+{
+	return TRUE; // 배경 지우기 안함
+}
+
+
+void CMFCApplicationView::OnViewSaveasimage()
+{
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("모두 선택"));
+	// 파일 다이얼로그 띄움
+	CFileDialog dlg(FALSE, _T("bmp"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("BMP Files (*.bmp)|*.bmp||"));
+	if (dlg.DoModal() == IDOK)
+	{
+		CString filePath = dlg.GetPathName();
+		// 화면 저장 코드 바로 작성!
+		CRect rect;
+		GetClientRect(&rect);
+		CDC memDC;
+		CBitmap bitmap;
+
+		CDC* pDC = GetDC();
+		memDC.CreateCompatibleDC(pDC);
+		bitmap.CreateCompatibleBitmap(pDC, rect.Width(), rect.Height());
+		CBitmap* pOldBitmap = memDC.SelectObject(&bitmap);
+
+		memDC.BitBlt(0, 0, rect.Width(), rect.Height(), pDC, 0, 0, SRCCOPY);
+
+		// 저장
+		CImage image;
+		image.Attach((HBITMAP)bitmap.Detach());
+		image.Save(filePath, Gdiplus::ImageFormatBMP);
+		image.Detach();
+
+		memDC.SelectObject(pOldBitmap);
+		ReleaseDC(pDC);
+	}
+}
+
+void CMFCApplicationView::OnBnClickedBtnFillColor()
+{
+	CColorDialog dlg(m_curFillColor);
+	if (dlg.DoModal() == IDOK)
+	{
+		m_curFillColor = dlg.GetColor();
+
+		int r = GetRValue(m_curFillColor);
+		int g = GetGValue(m_curFillColor);
+		int b = GetBValue(m_curFillColor);
+
+		CString msg;
+		msg.Format(_T("도형색 선택: R=%d, G=%d, B=%d"), r, g, b);
+
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(msg);
+	}
+}
+
+void CMFCApplicationView::OnBnClickedBtnBorderColor()
+{
+	CColorDialog dlg(m_curBorderColor);
+	if (dlg.DoModal() == IDOK)
+	{
+		m_curBorderColor = dlg.GetColor();
+
+		int r = GetRValue(m_curBorderColor);
+		int g = GetGValue(m_curBorderColor);
+		int b = GetBValue(m_curBorderColor);
+
+		CString msg;
+		msg.Format(_T("선 색 선택: R=%d, G=%d, B=%d"), r, g, b);
+
+		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+		if (pMainFrm)
+			pMainFrm->m_wndOutput.AddLog(msg);
+	}
+}
+
+void CMFCApplicationView::OnFlipHorizontal()
+{
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("좌우 반전"));
+	m_bFlipH = !m_bFlipH;   // 좌우 반전 상태 토글
+	Invalidate();           // 화면 다시 그리기 요청
+}
+
+void CMFCApplicationView::OnFlipVertical()
+{
+	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
+	if (pMainFrm)
+		pMainFrm->m_wndOutput.AddLog(_T("상하 반전"));
+	m_bFlipV = !m_bFlipV;   // 상하 반전 상태 토글
+	Invalidate();           // 화면 다시 그리기 요청
+}
+
+CPoint CMFCApplicationView::FlipPoint(const CPoint& pt, int width, int height) const
+{
+	CPoint out = pt;
+	if (m_bFlipH)
+		out.x = width - 1 - out.x;
+	if (m_bFlipV)
+		out.y = height - 1 - out.y;
+	return out;
+}
+
 void CMFCApplicationView::OnFileSaveAs()
 {
 	// TODO: 여기에 명령 처리기 코드를 추가합니다.
@@ -1251,11 +1255,13 @@ void CMFCApplicationView::OnFilterMosaic()
 
 void CMFCApplicationView::OnUndoShape()
 {
-	if (!m_shapes.empty()) {
-		m_shapes.pop_back();
-		Invalidate(FALSE); // 화면 다시 그리기
+	if (!m_shapesUndoStack.empty()) {
+		m_shapes = m_shapesUndoStack.back(); // 이전 상태로 복원
+		m_shapesUndoStack.pop_back();
+		Invalidate(FALSE);
 	}
 }
+
 void CMFCApplicationView::OnEditUndo()
 {
 	// TODO: 여기에 명령 처리기 코드를 추가합니다.
@@ -1265,6 +1271,15 @@ void CMFCApplicationView::OnEditUndo()
 	if (pMainFrm)
 		pMainFrm->m_wndOutput.AddLog(_T("Undo(되돌리기) 실행"));
 }
+
+void CMFCApplicationView::PushShapeUndo()
+{
+	const size_t MAX_UNDO = 10;
+	if (m_shapesUndoStack.size() >= MAX_UNDO)
+		m_shapesUndoStack.erase(m_shapesUndoStack.begin());
+	m_shapesUndoStack.push_back(m_shapes); // 현재 도형 상태 저장
+}
+
 
 BOOL CMFCApplicationView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
 {
