@@ -347,8 +347,8 @@ BOOL CMFCApplicationDoc::OnSaveDocument(LPCTSTR lpszPathName)
     bmi.bmiHeader.biWidth = nW;
     bmi.bmiHeader.biHeight = -nH; // top-down
     bmi.bmiHeader.biPlanes = 1;
-    bmi.bmiHeader.biBitCount = 24;
-    bmi.bmiHeader.biCompression = BI_RGB;
+    bmi.bmiHeader.biBitCount = 24; // 24비트(RGB)
+    bmi.bmiHeader.biCompression = BI_RGB;  //압축 없음
 
     ::SetDIBitsToDevice(
         memDC.GetSafeHdc(), 0, 0, nW, nH, 0, 0, 0, nH, dibBuf.data(), &bmi, DIB_RGB_COLORS

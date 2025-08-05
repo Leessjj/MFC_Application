@@ -45,7 +45,6 @@ BEGIN_MESSAGE_MAP(CMFCApplicationView, CScrollView)
 	ON_WM_LBUTTONDOWN()
 	ON_WM_MOUSEMOVE()
 	ON_WM_LBUTTONUP()
-	ON_COMMAND(ID_VIEW_SAVEASIMAGE, &CMFCApplicationView::OnViewSaveasimage)
 
 	ON_MESSAGE(WM_USER + 100, &CMFCApplicationView::OnOpenImageFileFromNet)
 	ON_MESSAGE(WM_USER + 101, &CMFCApplicationView::OnSaveImageFromNet)
@@ -1072,41 +1071,6 @@ BOOL CMFCApplicationView::OnEraseBkgnd(CDC* pDC)
 	return TRUE; // 배경 지우기 안함
 }
 
-
-void CMFCApplicationView::OnViewSaveasimage()
-{
-	CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-	if (pMainFrm)
-		pMainFrm->m_wndOutput.AddLog(_T("모두 선택"));
-	// 파일 다이얼로그 띄움
-	CFileDialog dlg(FALSE, _T("bmp"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, _T("BMP Files (*.bmp)|*.bmp||"));
-	if (dlg.DoModal() == IDOK)
-	{
-		CString filePath = dlg.GetPathName();
-		// 화면 저장 코드 바로 작성!
-		CRect rect;
-		GetClientRect(&rect);
-		CDC memDC;
-		CBitmap bitmap;
-
-		CDC* pDC = GetDC();
-		memDC.CreateCompatibleDC(pDC);
-		bitmap.CreateCompatibleBitmap(pDC, rect.Width(), rect.Height());
-		CBitmap* pOldBitmap = memDC.SelectObject(&bitmap);
-
-		memDC.BitBlt(0, 0, rect.Width(), rect.Height(), pDC, 0, 0, SRCCOPY);
-
-		// 저장
-		CImage image;
-		image.Attach((HBITMAP)bitmap.Detach());
-		image.Save(filePath, Gdiplus::ImageFormatBMP);
-		image.Detach();
-
-		memDC.SelectObject(pOldBitmap);
-		ReleaseDC(pDC);
-	}
-}
-
 void CMFCApplicationView::OnBnClickedBtnFillColor()
 {
 	CColorDialog dlg(m_curFillColor);
@@ -1650,12 +1614,6 @@ LRESULT CMFCApplicationView::OnSaveAllFromNet(WPARAM, LPARAM)
 	CString path = GetDocument()->GetPathName();
 	if (!path.IsEmpty()) {
 		GetDocument()->OnSaveDocument(path);
-
-		// 로그
-		CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-		if (pMainFrm)
-			pMainFrm->m_wndOutput.AddLog(_T("기본 저장"));
-
 		Invalidate(); // 필요시 화면 갱신
 	}
 	else {
